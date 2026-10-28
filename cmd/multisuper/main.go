@@ -26,6 +26,7 @@ import (
 const usage = `multisuper searches every supermarket chain at once.
 
 usage: multisuper find <term> [--limit N] [--timeout D] [--only store1,store2] [--json]
+       multisuper basket -f <basket.json|-> [--limit N] [--timeout D] [--only ...] [--json]
 
 flags:
   --limit N     maximum hits per chain, 1-100 (default 20)
@@ -40,8 +41,11 @@ status when there is one, and whether retrying is worth it.
 Hit prices are published by each chain as-is; there is no cross-chain merging (that
 needs the EAN) and no winner is picked.
 
-exit status: 0 at least one chain answered (even with no hits), 1 every chain failed,
-             2 usage error.`
+basket prices the user's own list of goods in every chain and ranks the chains that can
+fill it completely: see "multisuper basket --help".
+
+exit status: find: 0 at least one chain answered (even with no hits), 1 every chain
+             failed, 2 usage error. basket: 1 when no chain covers the whole basket.`
 
 const (
 	defaultLimit   = 20
@@ -92,6 +96,10 @@ func run(args []string, stdout, stderr io.Writer, all []aggregate.Chain) int {
 	for _, arg := range args {
 		switch arg {
 		case "-h", "--h", "-help", "--help":
+			if args[0] == "basket" {
+				fmt.Fprintln(stdout, basketUsage)
+				return 0
+			}
 			fmt.Fprintln(stdout, usage)
 			return 0
 		}
@@ -103,6 +111,8 @@ func run(args []string, stdout, stderr io.Writer, all []aggregate.Chain) int {
 	switch args[0] {
 	case "find":
 		return runFind(args[1:], stdout, stderr, all)
+	case "basket":
+		return runBasket(args[1:], stdout, stderr, all, os.Stdin)
 	case "help":
 		fmt.Fprintln(stdout, usage)
 		return 0
