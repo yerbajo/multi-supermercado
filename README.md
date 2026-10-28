@@ -24,6 +24,25 @@ bin/dia search leche entera        # tabla legible por defecto
 Comando único en todas las cadenas: `search <término> [--limit N] [--json]`.
 `aldi` añade `--region pen|can|bal` y `mas` añade `--page N`.
 
+## Cestas
+
+Solo `dia` llena una cesta hoy, y de punta a punta:
+
+```bash
+dia cart add 504P6 1      # crea la sesión anónima si no existe
+dia cart get --json       # líneas, precio unitario, total
+dia cart update 504P6 2   # fija la cantidad
+dia cart remove 504P6
+dia cart clear
+```
+
+La identidad es la cookie `session_id` que DIA emite en la primera llamada, guardada en
+`~/.config/multisuper/dia-cart.json` con permisos `0600`. Nunca hay login, ni checkout, ni
+pedido: la cesta se llena y se abandona.
+
+`mas` tiene el mismo juego de verbos (`mas cart add|get|remove|clear`), pero **solo lee y
+vacía**: la tienda rechaza cualquier `add` (ver límites). Ninguna otra cadena tiene cesta.
+
 **Los códigos de salida son los mismos en los seis binarios:**
 
 | Código | Significado |
@@ -174,7 +193,8 @@ falsas de este README).
 | `aldi`, `lidl` | Publican el tamaño de venta como texto (`salesUnit`, `packaging.text`) y hoy no se expone en `size`: es la mejora más barata para ellas. |
 | `carrefour` | Superfudis devolvió `500 basket_comparison_failed` en una llamada y 200 al reintentar; y agotó su cuota de 3/min en la primera prueba real del agregador. El `ean` depende de un tercero intermitente. |
 | `mas` (cesta) | El carrito GraphQL lee, vacía y olvida el id, pero `addProductsToCart` es rechazado para todo SKU (`UNDEFINED: La cantidad solicitada no está disponible`): su canal de venta no expone inventario por GraphQL y la propia tienda añade con un **POST de formulario** a `/checkout/cart/add`. Esa vía exige `form_key` y cookies de sesión: pendiente. |
-| cestas | Solo posibles donde hay venta online: `mas`, `dia`, `lidl`, `alcampo`. **ALDI no vende online** y **Carrefour está bloqueado** (y Superfudis no gestiona cestas): esas dos nunca tendrán cesta, solo precio. |
+| `dia` (cesta) | El `total` es el subtotal de artículos, sin envío (DIA publica 14,95 € aparte, con 4,99 € de envío). La lectura de líneas vive bajo `api/v1/checkout-back/cart/reduced` porque es el único payload que las trae: es un GET, sin mutación ni pedido. DIA aplica su propio tope por línea (`20000` unidades → «solo 6 en stock» aunque la búsqueda diga 8564): el CLI repite su mensaje, nunca calcula el suyo. |
+| cestas | Solo posibles donde hay venta online: `dia` **funciona**; `mas` solo lee; `lidl` y `alcampo` por verificar. **ALDI no vende online** y **Carrefour está bloqueado** (y Superfudis no gestiona cestas): esas dos nunca tendrán cesta, solo precio. |
 
 ## Origen
 
