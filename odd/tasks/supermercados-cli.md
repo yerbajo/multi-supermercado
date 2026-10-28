@@ -14,7 +14,11 @@ Fase 1 de un agregador: dos binarios, uno por cadena, que buscan un producto y d
 - **S3** — «primero hacer los cli que se utilizaran por una aplicacion web que buscará un
   producto en todos los supermercados». Comando mínimo: `search <term>`. Con `--json`
   imprime el sobre `contract.Result` de `internal/contract` y **solo eso** en stdout;
-  errores y logs a stderr; exit `1` en error. Los dos binarios imprimen la misma forma.
+  errores y logs a stderr. Códigos de salida, iguales en todos los binarios: `0` éxito,
+  `1` error de obtención o de parseo, `2` error de uso (falta el término, `--limit` fuera de
+  1..100, bandera desconocida). El término es la frase completa: `dia search leche entera`
+  busca «leche entera», nunca solo «leche». Un `--limit` inválido se rechaza, no se recorta
+  en silencio.
 - **S4** — «luego se añadirán a carritos independientes (se evolucionará la idea mas
   adelante)». Fuera de alcance: sin login, sin carrito, sin checkout en esta feature.
 - **S5** — «Si necesitas hacer REA, hazlo.» La fase de catálogo no lo requiere: las dos
@@ -28,6 +32,13 @@ Fase 1 de un agregador: dos binarios, uno por cadena, que buscan un producto y d
   o no se deja leer sin navegador, se dice y no se simula.
 - **S8** — Ningún CLI inventa un dato: sin precio publicado → `price` vacío y el hueco
   declarado en el README, nunca un precio estimado ni el de otra cadena.
+- **S9** — Carrefour se lee **a través de Superfudis** (`POST
+  https://supercomparador-i9tw.onrender.com/api/v1/compare-basket` con
+  `retailers:["Carrefour"]`), no de `carrefour.es`, que está bloqueado por Cloudflare en
+  todas sus rutas. Es una fuente declarada: el precio es *reportado por Superfudis*, no
+  publicado por Carrefour, y así debe etiquetarse (S8). Límites reales: 10 productos por
+  petición, 3 peticiones por minuto, sin endpoint de catálogo, y su ToS prohíbe la
+  extracción masiva.
 
 ## Hechos verificados que condicionan la implementación
 
@@ -59,8 +70,26 @@ y `total_count` verificados (245 resultados para «leche», 20 por página).
 - [ ] **T9** `carrefour-cli`: `carrefour.es` devuelve 403 Cloudflare. Requiere ingeniería
       inversa con navegador real o huella TLS. Ruta: `gentle-ai-explore` para el mapa y
       decisión del usuario antes de escribir código.
+      **Mapa cerrado (explore):** `blocked-without-browser`. El 403 de Cloudflare
+      (`__cf_bm`) cubre **todas** las rutas de catálogo y de API en ambos hosts `.es`
+      (`/cloud-api/*`, `/graphql`, sitemaps, `/supermercado/...`) con lista blanca solo para
+      `robots.txt` y `favicon.ico`; `carrefour.fr` y `carrefour.it` responden 200, así que el
+      bloqueo es de zona, no del cliente. `api/compraonline/tienda/marketplace.carrefour.es`
+      no resuelven (DNS). `robots.txt` sí permite las rutas de categoría y producto: lo que
+      se rompe es Cloudflare, no el `robots`. Terceros: Superfudis (API pública, 3 req/min,
+      ≤10 ítems, prohíbe extracción masiva, host en cold start), Open Prices (sin cobertura
+      ES verificada), Apify/Bright Data (de pago, ~1,20 USD/1k productos). Sin superficie
+      gratuita y legítima con precios por SKU.
 - [ ] **T10** Desbloquear el smoke real de DIA (Akamai responde 200 de forma intermitente
-      según huella TLS/orden de cabeceras). Espera decisión sobre añadir dependencia uTLS.
+      según huella TLS/orden de cabeceras). **Decidido:** añadir `utls` y presentar el
+      ClientHello de Chrome, como hace `mercadona-cli`. Ruta: `gentle-ai-worker`.
+- [ ] **T11** `carrefour-cli` sobre Superfudis (S9), etiquetando el precio como reportado.
+      Ruta: `gentle-ai-worker`.
+- [ ] **T12** Alinear `dia` y `mas` con S3: término de varias palabras, `--limit` validado
+      en vez de recortado, y los tres códigos de salida.
+- [ ] **T13** Presencia de precio en el contrato: hoy un producto sin precio se serializa
+      `"price": 0` y se lee como 0,00 €. Diferido hasta que termine `alcampo` (toca
+      `internal/contract`).
 
 ## Log
 
@@ -74,6 +103,15 @@ y `total_count` verificados (245 resultados para «leche», 20 por página).
   pero puedes analizar grocery-cli para reutilizar codigo.»
 - **L3** (literal) «continua, lanza subagentes para trabajo en paralelo»
 - **L4** (literal) «en subagentes de aldi, lidl, carrefour y alcampo»
+- **L5** **Decisiones del usuario:** DIA → «Añadir utls y pelear el 200»; Carrefour →
+  «Integrar Superfudis como fuente declarada». Registradas vía pregunta estructurada, no
+  como texto literal.
+- **Descubrimientos de los workers** (evidencia en sus informes): ALDI sirve su buscador
+  con Algolia (`an_prd_es_es_<pen|can|bal>_products2`, credenciales search-only en el
+  bundle); la ruta `/_next/data/<buildId>` está bloqueada con 308. Lidl devuelve 401 sin
+  el parámetro `version`, cuyo valor **no se valida**; no hay login detrás. Superfudis
+  responde 200 con `{"status":"ok","items":[{...,"offers":[{retailer,price_eur,
+  match_type,...}]}]}`.
 - **Decisión:** Go (stdlib, sin dependencias), mismo contrato de salida para las dos
   cadenas, `--json` como forma canónica y tabla legible como forma por defecto.
 - **Decisión:** fuera de T2/T3 todo lo que no sea `search` (product, categories, batch).
