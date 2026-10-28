@@ -206,6 +206,8 @@ main{max-width:1160px;margin-inline:auto;padding:var(--sp-2) var(--sp-7) 0}
 .hit-products .pname{font-size:var(--text-sm);min-width:0;overflow-wrap:anywhere}
 .hit-products .pprice{font-size:var(--text-sm);font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
 .hit-down{font-size:var(--text-sm);color:var(--ink-2)}
+/* «ver más» sits under its own chain: one control per page, never a sort control. */
+.hit-more{margin-block-start:var(--sp-2);font-size:var(--text-xs);color:var(--ink-2);display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
 
 /* ---- failure line: chains that did not answer, never a competitor row ---- */
 .fail-line{

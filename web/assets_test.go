@@ -339,3 +339,93 @@ func TestStoreCardCounterIsNotAContradiction(t *testing.T) {
 		t.Error("nothing refreshes the store counter")
 	}
 }
+
+// TestSearchPagesPerChain pins T39: the first ask is ten rows per chain, «ver más» re-asks
+// the same query for a bigger page up to the ceiling instead of reordering anything, the
+// appended rows are deduped by store+id, and one line under the results says whose order
+// the shopper is reading.
+func TestSearchPagesPerChain(t *testing.T) {
+	js, html := read(t, "app.js"), read(t, "index.html")
+
+	for what, want := range map[string]string{
+		"first page":  "const PAGE = 10;",
+		"first ask":   "term: term, limit: PAGE",
+		"page cap":    "const PAGE_CAP = 100;",
+		"bigger page": "Math.min(limit * 2, PAGE_CAP)",
+	} {
+		if !strings.Contains(js, want) {
+			t.Errorf("%s: app.js is missing %q", what, want)
+		}
+	}
+
+	// The block carries the control, and the control asks the chain for a bigger page of the
+	// same term — never a different order.
+	if !strings.Contains(fnBody(t, js, "function hitChain("), "appendHits(") {
+		t.Error("the chain block never feeds its rows through appendHits")
+	}
+	rows := fnBody(t, js, "function appendHits(")
+	for _, want := range []string{`data-more="${esc(r.store)}"`, "Ver más en "} {
+		if !strings.Contains(rows, want) {
+			t.Errorf("the chain block has no «ver más» control: missing %q", want)
+		}
+	}
+	more := fnBody(t, js, "async function pageMore(")
+	for _, want := range []string{
+		"nextLimit(page.limit)",
+		"{ term: page.term, limit: limit }",
+		"appendHits(",
+		"updateSearchStatus()",
+	} {
+		if !strings.Contains(more, want) {
+			t.Errorf("«ver más» does not extend the same query: missing %q", want)
+		}
+	}
+	if !strings.Contains(js, `closest("[data-more]")`) {
+		t.Error("«ver más» has no click listener, so it is a dead button")
+	}
+
+	// Appended rows dedupe by the pair, not the id: every chain numbers its own catalogue.
+	for _, want := range []string{
+		`const hitKey = (store, hit) => store + "/" + hit.id;`,
+		"if (seenHits.has(key)) continue;",
+	} {
+		if !strings.Contains(js, want) {
+			t.Errorf("appended rows are not deduped by store+id: missing %q", want)
+		}
+	}
+
+	// A chain that returns fewer rows than asked, or reaches the cap, loses the control and
+	// says why, instead of leaving a button that does nothing.
+	for _, want := range []string{"r.hits.length < page.limit", "Sin más resultados en "} {
+		if !strings.Contains(js, want) {
+			t.Errorf("the control is not retired with its reason: missing %q", want)
+		}
+	}
+
+	// The previous block is still what it was: a pin button per row and a stated empty answer.
+	for _, want := range []string{`data-pin="${esc(store)}"`, "Sin resultados para este término."} {
+		if !strings.Contains(js, want) {
+			t.Errorf("the search block lost its previous behaviour: missing %q", want)
+		}
+	}
+
+	// One honest line under the results: the order is each store's, ours only lifts the hits
+	// that carry the shopper's words.
+	at := strings.Index(html, `id="hits-note"`)
+	if at < 0 {
+		t.Fatal("index.html has no honesty line under the results")
+	}
+	line := html[at:]
+	if end := strings.Index(line, "</p>"); end > 0 {
+		line = line[:end]
+	}
+	for _, want := range []string{
+		"dentro de cada cadena",
+		"solo ponemos delante los resultados que contienen tus palabras",
+		"sin reordenar por marca ni por precio",
+	} {
+		if !strings.Contains(line, want) {
+			t.Errorf("the honesty line does not say %q", want)
+		}
+	}
+}
