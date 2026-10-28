@@ -51,9 +51,12 @@ func NewClient() *Client {
 }
 
 // Search returns at most limit hits for term. An unknown term is not an error:
-// the API answers with an empty search_items list.
+// the API answers with an empty search_items list. A limit outside 1..MaxLimit is
+// rejected, never clamped, so the CLI can report it as a usage error (S3).
 func (c *Client) Search(ctx context.Context, term string, limit int) (contract.Result, error) {
-	limit = clampLimit(limit)
+	if limit < 1 || limit > MaxLimit {
+		return contract.Result{}, fmt.Errorf("dia: limit must be between 1 and %d, got %d", MaxLimit, limit)
+	}
 	body, err := c.get(ctx, strings.TrimSuffix(c.BaseURL, "/")+searchPath+"?q="+url.QueryEscape(term))
 	if err != nil {
 		return contract.Result{}, err
@@ -106,17 +109,6 @@ func (c *Client) Search(ctx context.Context, term string, limit int) (contract.R
 	}
 
 	return contract.Result{Store: "dia", Query: term, Count: len(hits), Hits: hits}, nil
-}
-
-func clampLimit(limit int) int {
-	switch {
-	case limit <= 0:
-		return DefaultLimit
-	case limit > MaxLimit:
-		return MaxLimit
-	default:
-		return limit
-	}
 }
 
 // unit maps DIA's measure_unit onto the contract vocabulary; anything else stays empty.

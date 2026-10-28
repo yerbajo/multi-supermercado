@@ -127,3 +127,38 @@ func TestUsageErrors(t *testing.T) {
 		}
 	}
 }
+
+// S3: the search term is the whole phrase, never just its first word.
+func TestMultiWordTermIsSearchedAsOnePhrase(t *testing.T) {
+	stub := &stubSearcher{res: sample()}
+	var out, errOut bytes.Buffer
+	if code := run([]string{"search", "leche", "entera", "--limit", "3", "--json"}, &out, &errOut, stub); code != 0 {
+		t.Fatalf("exit = %d, stderr = %s", code, errOut.String())
+	}
+	if stub.term != "leche entera" {
+		t.Fatalf("searcher got term %q, want %q", stub.term, "leche entera")
+	}
+	if stub.lim != 3 {
+		t.Fatalf("searcher got limit %d, want 3", stub.lim)
+	}
+}
+
+// S3: an out-of-range --limit is rejected, never silently clamped.
+func TestLimitOutOfRangeIsRejected(t *testing.T) {
+	for _, limit := range []string{"0", "-1", "101", "1000"} {
+		stub := &stubSearcher{res: sample()}
+		var out, errOut bytes.Buffer
+		if code := run([]string{"search", "leche", "--limit", limit, "--json"}, &out, &errOut, stub); code != 2 {
+			t.Errorf("--limit %s: exit = %d, want 2", limit, code)
+		}
+		if out.Len() != 0 {
+			t.Errorf("--limit %s: stdout = %q, want nothing", limit, out.String())
+		}
+		if stub.term != "" || stub.lim != 0 {
+			t.Errorf("--limit %s: searcher was called with term=%q limit=%d", limit, stub.term, stub.lim)
+		}
+		if !strings.Contains(errOut.String(), "limit must be between 1 and 100") {
+			t.Errorf("--limit %s: stderr = %q", limit, errOut.String())
+		}
+	}
+}

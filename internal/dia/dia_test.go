@@ -244,32 +244,36 @@ func TestSearchGivesUpAfterThreeAttempts(t *testing.T) {
 	}
 }
 
-func TestSearchLimit(t *testing.T) {
-	items := strings.Join([]string{baseItem, baseItem, baseItem}, ",")
-	tests := []struct {
-		limit int
-		want  int
-	}{
-		{0, DefaultLimit},
-		{-3, DefaultLimit},
-		{2, 2},
-		{MaxLimit + 50, MaxLimit},
-	}
-	for _, tc := range tests {
+// S3: the client rejects an out-of-range limit instead of clamping it, and the
+// rejected call must not reach the network.
+func TestSearchRejectsLimitOutOfRange(t *testing.T) {
+	for _, limit := range []int{-1, 0, MaxLimit + 1, 1000} {
+		var called bool
 		c, _ := newServer(t, func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte(envelope(items)))
+			called = true
+			w.Write([]byte(envelope(baseItem)))
 		})
-		res, err := c.Search(context.Background(), "leche", tc.limit)
-		if err != nil {
-			t.Fatalf("limit %d: %v", tc.limit, err)
+		if _, err := c.Search(context.Background(), "leche", limit); err == nil {
+			t.Errorf("limit %d: expected an error, got nil", limit)
 		}
-		want := tc.want
-		if want > 3 {
-			want = 3
+		if called {
+			t.Errorf("limit %d: request was performed", limit)
 		}
-		if res.Count != want || len(res.Hits) != want {
-			t.Fatalf("limit %d: count=%d hits=%d want %d", tc.limit, res.Count, len(res.Hits), want)
-		}
+	}
+}
+
+// A valid limit still truncates the response, as before.
+func TestSearchTruncatesToValidLimit(t *testing.T) {
+	items := strings.Join([]string{baseItem, baseItem, baseItem}, ",")
+	c, _ := newServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(envelope(items)))
+	})
+	res, err := c.Search(context.Background(), "leche", 2)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if res.Count != 2 || len(res.Hits) != 2 {
+		t.Fatalf("count=%d hits=%d, want 2", res.Count, len(res.Hits))
 	}
 }
 

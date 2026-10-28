@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"multisuper/internal/contract"
@@ -36,20 +37,27 @@ func run(args []string, stdout, stderr io.Writer, s searcher) int {
 		fs.Usage()
 		return 2
 	}
-	// Parse flags after the subcommand, so `dia search leche --limit 3` works.
-	if err := fs.Parse(args[1:]); err != nil {
-		return 2
-	}
-	term := fs.Arg(0)
-	// Go's flag package stops at the first positional, so pick up flags that
-	// follow the term.
-	for rest := fs.Args(); len(rest) > 1; rest = fs.Args() {
-		if err := fs.Parse(rest[1:]); err != nil {
+	// Parse flags after the subcommand, so `dia search leche --limit 3` works, and
+	// collect every positional: the term is the whole phrase (S3).
+	var words []string
+	for rest := args[1:]; ; {
+		if err := fs.Parse(rest); err != nil {
 			return 2
 		}
+		if fs.NArg() == 0 {
+			break
+		}
+		words = append(words, fs.Arg(0))
+		rest = fs.Args()[1:]
 	}
+	term := strings.TrimSpace(strings.Join(words, " "))
 	if term == "" {
 		fs.Usage()
+		return 2
+	}
+	// S3: a --limit outside 1..100 is a usage error, never silently clamped.
+	if *limit < 1 || *limit > dia.MaxLimit {
+		fmt.Fprintf(stderr, "--limit must be between 1 and %d, got %d\n", dia.MaxLimit, *limit)
 		return 2
 	}
 
