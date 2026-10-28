@@ -20,7 +20,11 @@ type gqlProduct struct {
 	SKU         string `json:"sku"`
 	URLKey      string `json:"url_key"`
 	StockStatus string `json:"stock_status"`
-	Price       struct {
+	Categories  []struct {
+		Name    string `json:"name"`
+		URLPath string `json:"url_path"`
+	} `json:"categories"`
+	Price struct {
 		RegularPrice struct {
 			Amount struct {
 				// A nil value means MAS published no price for the product (S8).
@@ -33,7 +37,7 @@ type gqlProduct struct {
 
 // hit converts one catalog product into the shared JSON envelope shape.
 //
-// MAS publishes no sold size, so PricePerUnit and Unit always stay empty. A previous
+// MAS publishes no sold size, so Size, PricePerUnit and Unit always stay empty. A previous
 // version read a size out of the product name; it reported 0.09 €/L for a 30-litre bin
 // bag ("HANDY BAG 30l 12ud") and 135 €/L for "IFA SABE 10ux100ml", prices per litre
 // nobody publishes. Removed rather than gated by category (S8).
@@ -43,6 +47,7 @@ func (p gqlProduct) hit() contract.Hit {
 		ID:        p.SKU,
 		Name:      p.Name,
 		Available: contract.Bool(p.StockStatus == "IN_STOCK"),
+		Category:  p.category(),
 	}
 	// url_key already carries the category path; the storefront only serves it with a
 	// trailing slash (".html" or no slash both 404/redirect).
@@ -54,4 +59,34 @@ func (p gqlProduct) hit() contract.Hit {
 		h.Currency = p.Price.RegularPrice.Amount.Currency
 	}
 	return h
+}
+
+// category returns the most specific category MAS publishes for the product, or "" when
+// it publishes none. MAS lists every ancestor plus unrelated buckets: one condensed milk
+// carried eight categories, including two equally deep branches, the brand ("La lechera")
+// and a seasonal bucket ("Recetas de semana santa"). The deepest url_path wins; url_key
+// starts with the product page's own top-level branch, which settles a tie between two
+// equally deep branches (condensed milk sits under lacteos-sustitutivos/leche, not under
+// the birthday-cake branch it is also filed in), and the first category wins if it
+// settles nothing.
+func (p gqlProduct) category() string {
+	own := branch(p.URLKey)
+	best, bestBranch, bestDepth := "", "", 0
+	for _, c := range p.Categories {
+		if c.URLPath == "" {
+			continue
+		}
+		depth := strings.Count(c.URLPath, "/") + 1
+		mine := branch(c.URLPath) == own && own != ""
+		if depth > bestDepth || (depth == bestDepth && mine && bestBranch != own) {
+			best, bestBranch, bestDepth = c.Name, branch(c.URLPath), depth
+		}
+	}
+	return best
+}
+
+// branch is the first segment of a category path.
+func branch(urlPath string) string {
+	first, _, _ := strings.Cut(strings.Trim(urlPath, "/"), "/")
+	return first
 }

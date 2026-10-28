@@ -16,8 +16,9 @@ import (
 
 // searchQuery is the Magento products query verified against the live storefront.
 // price_range returns HTTP 500 and finalPrice does not exist on ProductPrices: only
-// price.regularPrice.amount is requested.
-const searchQuery = `query($t:String!,$p:Int!,$n:Int!){products(search:$t,currentPage:$p,pageSize:$n){total_count items{name sku url_key stock_status price{regularPrice{amount{value currency}}}}}}`
+// price.regularPrice.amount is requested. categories{name url_path} is answered as
+// published: one product can carry every ancestor plus brand and seasonal buckets.
+const searchQuery = `query($t:String!,$p:Int!,$n:Int!){products(search:$t,currentPage:$p,pageSize:$n){total_count items{name sku url_key stock_status categories{name url_path} price{regularPrice{amount{value currency}}}}}}`
 
 const (
 	graphqlPath = "/graphql/"

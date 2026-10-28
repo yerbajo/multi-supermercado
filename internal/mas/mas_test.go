@@ -129,6 +129,100 @@ func TestSearchSendsQueryToGraphQL(t *testing.T) {
 	}
 }
 
+// wantQuery is the exact selection sent to /graphql/. Pinned so the category cannot
+// silently disappear: MAS accepts categories{name url_path} inside items (verified live,
+// one product came back with eight categories).
+const wantQuery = `query($t:String!,$p:Int!,$n:Int!){products(search:$t,currentPage:$p,pageSize:$n){total_count items{name sku url_key stock_status categories{name url_path} price{regularPrice{amount{value currency}}}}}}`
+
+func TestSearchPinsTheQueriedFields(t *testing.T) {
+	var query string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Query string `json:"query"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decoding body: %v", err)
+		}
+		query = body.Query
+		w.Write([]byte(`{"data":{"products":{"items":[]}}}`))
+	}))
+	defer srv.Close()
+
+	c := New()
+	c.BaseURL = srv.URL
+	if _, err := c.Search(context.Background(), "leche", 1, 20); err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if query != wantQuery {
+		t.Fatalf("query\n got: %s\nwant: %s", query, wantQuery)
+	}
+}
+
+// Real shape captured live for "leche": MAS publishes every ancestor plus brand and
+// seasonal buckets, so 114042 carries eight categories across two branches of equal
+// depth. The category is the deepest one on the branch the product page itself sits in
+// (url_key is that path), so condensed milk is not filed under birthday-cake mixes.
+// The bin bags show the value the food/non-food gate needs.
+func TestSearchMapsTheMostSpecificCategory(t *testing.T) {
+	body := `{"data":{"products":{"items":[
+{"name":"Leche condensada LA LECHERA 370 gr","sku":"114042","url_key":"lacteos-sustitutivos/leche-condensada-la-lechera-370-gr","stock_status":"IN_STOCK","categories":[
+{"name":"Panadería, bollería y pastelería","url_path":"panaderia-bolleria-pasteleria"},
+{"name":"Lácteos y sustitutivos","url_path":"lacteos-sustitutivos"},
+{"name":"Repostería","url_path":"panaderia-bolleria-pasteleria/reposteria"},
+{"name":"Preparados para bizcochos y tartas","url_path":"panaderia-bolleria-pasteleria/reposteria/preparados-para-bizcochos-tartas"},
+{"name":"Leche","url_path":"lacteos-sustitutivos/leche"},
+{"name":"En polvo, condensadas y evaporadas","url_path":"lacteos-sustitutivos/leche/en-polvo-condensadas-evaporadas"},
+{"name":"La lechera","url_path":"la-lechera"},
+{"name":"Recetas de semana santa","url_path":"recetas-de-semana-santa"}],
+"price":{"regularPrice":{"amount":{"value":2.89,"currency":"EUR"}}}},
+{"name":"Bolsa basura antigoteo HANDY BAG 30l 12ud","sku":"192809","url_key":"drogueria-limpieza/bolsa-basura-antigoteo-handy-bag-30l-12ud","stock_status":"IN_STOCK","categories":[
+{"name":"Droguería y limpieza","url_path":"drogueria-limpieza"},
+{"name":"Bolsas de basura","url_path":"drogueria-limpieza/bolsas-de-basura"},
+{"name":"Black Friday","url_path":"black-friday"},
+{"name":"Ofertas y precios bajos","url_path":"ofertas-precios-bajos"}],
+"price":{"regularPrice":{"amount":{"value":2.75,"currency":"EUR"}}}},
+{"name":"Leche entera PASCUAL botella 1,5l","sku":"114925","url_key":"lacteos-sustitutivos/leche-entera-pascual-botella-1-5l","stock_status":"IN_STOCK","categories":[
+{"name":"Leche","url_path":"lacteos-sustitutivos/leche"}],
+"price":{"regularPrice":{"amount":{"value":1.84,"currency":"EUR"}}}}
+]}}}`
+
+	want := map[string]string{
+		"114042": "En polvo, condensadas y evaporadas",
+		"192809": "Bolsas de basura",
+		// A single category is kept as published, one level deep included.
+		"114925": "Leche",
+	}
+	got := searchJSON(t, body, http.StatusOK)
+	var res struct {
+		Hits []contract.Hit `json:"hits"`
+	}
+	if err := json.Unmarshal([]byte(got), &res); err != nil {
+		t.Fatalf("output is not JSON: %v\n%s", err, got)
+	}
+	if len(res.Hits) != len(want) {
+		t.Fatalf("hits = %d, want %d:\n%s", len(res.Hits), len(want), got)
+	}
+	for _, h := range res.Hits {
+		if h.Category != want[h.ID] {
+			t.Errorf("hit %s category = %q, want %q", h.ID, h.Category, want[h.ID])
+		}
+	}
+}
+
+// A product MAS publishes no category for keeps the key out of the JSON: an empty
+// category is not a category, and the web must not read it as "non-food" (S8).
+func TestSearchOmitsACategoryMASDoesNotPublish(t *testing.T) {
+	body := `{"data":{"products":{"items":[
+{"name":"Leche entera PASCUAL","sku":"1","url_key":"lacteos-sustitutivos/pascual","stock_status":"IN_STOCK","categories":[],"price":{"regularPrice":{"amount":{"value":1.5,"currency":"EUR"}}}},
+{"name":"Leche semidesnatada PASCUAL","sku":"2","url_key":"lacteos-sustitutivos/pascual-2","stock_status":"IN_STOCK","categories":null,"price":{"regularPrice":{"amount":{"value":1.6,"currency":"EUR"}}}},
+{"name":"Leche desnatada PASCUAL","sku":"3","url_key":"lacteos-sustitutivos/pascual-3","stock_status":"IN_STOCK","price":{"regularPrice":{"amount":{"value":1.7,"currency":"EUR"}}}}
+]}}}`
+	got := searchJSON(t, body, http.StatusOK)
+	if strings.Contains(got, `"category"`) {
+		t.Fatalf("a hit invented a category:\n%s", got)
+	}
+}
+
 func TestSearchRetriesRateLimit(t *testing.T) {
 	attempts := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
