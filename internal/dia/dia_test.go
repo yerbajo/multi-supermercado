@@ -2,8 +2,10 @@ package dia
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -45,6 +47,137 @@ func newServer(t *testing.T, handler http.HandlerFunc) (*Client, *httptest.Serve
 
 func envelope(items string) string {
 	return `{"cart":{},"customer":{},"facets":[],"footer":{},"search_items":[` + items + `]}`
+}
+
+// newTLSServer starts an h2-capable test server and a client that trusts it, so
+// the fingerprint path can be exercised end to end without dialing dia.es.
+func newTLSServer(t *testing.T, handler http.HandlerFunc) (*Client, *httptest.Server) {
+	t.Helper()
+	srv := httptest.NewUnstartedServer(handler)
+	srv.EnableHTTP2 = true
+	srv.StartTLS()
+	t.Cleanup(srv.Close)
+
+	c := NewClient()
+	c.BaseURL = srv.URL
+	c.RootCAs = x509.NewCertPool()
+	c.RootCAs.AddCert(srv.Certificate())
+	return c, srv
+}
+
+// T10: dia.es sits behind Akamai, which answers 403 to Go's own ClientHello even
+// with browser headers. HTTPS must therefore leave through the uTLS Chrome
+// fingerprint, not through net/http's own TLS stack.
+func TestNewClientUsesChromeFingerprint(t *testing.T) {
+	tr, ok := NewClient().HTTP.Transport.(*transport)
+	if !ok {
+		t.Fatalf("transport = %T, want *dia.transport", NewClient().HTTP.Transport)
+	}
+	if tr.fingerprint.DialTLSContext == nil {
+		t.Fatal("https would go through net/http's own ClientHello, not uTLS")
+	}
+	if tr.fingerprint.TLSClientConfig != nil {
+		t.Fatal("TLSClientConfig would replace the fingerprinted handshake")
+	}
+	if tr.plain == nil {
+		t.Fatal("plain http has no transport")
+	}
+}
+
+// The fingerprinted transport must stay an HTTP/2 browser: same search, same
+// parsed result, but the server has to see HTTP/2.
+func TestSearchOverChromeFingerprint(t *testing.T) {
+	var proto string
+	c, srv := newTLSServer(t, func(w http.ResponseWriter, r *http.Request) {
+		proto = r.Proto
+		w.Write([]byte(envelope(baseItem)))
+	})
+
+	res, err := c.Search(context.Background(), "leche", 20)
+	if err != nil {
+		t.Fatalf("Search over TLS: %v", err)
+	}
+	if res.Count != 1 || res.Hits[0].ID != "74720P6" || res.Hits[0].Price != 11.82 {
+		t.Fatalf("result = %+v", res)
+	}
+	if res.Hits[0].URL != srv.URL+"/huevos-leche-y-mantequilla/leche/p/74720P6" {
+		t.Fatalf("url = %q", res.Hits[0].URL)
+	}
+	if proto != "HTTP/2.0" {
+		t.Fatalf("server saw %q, want HTTP/2.0", proto)
+	}
+}
+
+// failFirstListener closes the first accepted connection, so the fingerprinted
+// handshake fails exactly once.
+type failFirstListener struct {
+	net.Listener
+	failed bool
+}
+
+func (l *failFirstListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	if l.failed {
+		return conn, nil
+	}
+	l.failed = true
+	conn.Close()
+	return l.Accept()
+}
+
+// A broken handshake degrades to the standard transport instead of failing the
+// search, and says so on stderr once per client. An HTTP status is not a
+// handshake failure, so a 403 still surfaces as an error.
+func TestSearchFallsBackWhenHandshakeFails(t *testing.T) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(envelope(baseItem)))
+	}))
+	srv.EnableHTTP2 = true
+	srv.Listener = &failFirstListener{Listener: srv.Listener}
+	srv.StartTLS()
+	t.Cleanup(srv.Close)
+
+	c := NewClient()
+	c.BaseURL = srv.URL
+	c.RootCAs = x509.NewCertPool()
+	c.RootCAs.AddCert(srv.Certificate())
+	var stderr strings.Builder
+	c.warn = &stderr
+
+	for i := 0; i < 2; i++ {
+		res, err := c.Search(context.Background(), "leche", 20)
+		if err != nil {
+			t.Fatalf("search %d did not fall back: %v", i, err)
+		}
+		if res.Count != 1 {
+			t.Fatalf("search %d: count = %d, want 1", i, res.Count)
+		}
+	}
+	if n := strings.Count(stderr.String(), "falling back"); n != 1 {
+		t.Fatalf("fallback logged %d times, want exactly 1: %q", n, stderr.String())
+	}
+}
+
+// A real answer we dislike is not a transport failure: 403 must be reported.
+func TestForbiddenIsNotAFallback(t *testing.T) {
+	c, _ := newTLSServer(t, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "Access Denied", http.StatusForbidden)
+	})
+	var stderr strings.Builder
+	c.warn = &stderr
+	_, err := c.Search(context.Background(), "leche", 20)
+	if err == nil {
+		t.Fatal("expected an error for 403")
+	}
+	if !strings.Contains(err.Error(), "403") {
+		t.Fatalf("err = %v, want the 403 reported", err)
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("403 must not fall back, logged: %q", stderr.String())
+	}
 }
 
 func TestSearchMapsRealResponse(t *testing.T) {
