@@ -49,7 +49,7 @@ func TestRunRejectsBadInput(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var stdout, stderr strings.Builder
 			stub := &stubSearcher{}
-			err := run(tt.args, &stdout, &stderr, stub)
+			err := run(tt.args, &stdout, &stderr, deps{search: stub})
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("err = %v, want it to mention %q", err, tt.want)
 			}
@@ -78,7 +78,7 @@ func TestHelpExitsZeroAndPrintsUsageOnStdout(t *testing.T) {
 	} {
 		var stdout, stderr strings.Builder
 		stub := &stubSearcher{}
-		if err := run(args, &stdout, &stderr, stub); err != nil {
+		if err := run(args, &stdout, &stderr, deps{search: stub}); err != nil {
 			t.Errorf("%v: err = %v, want nil", args, err)
 		}
 		if !strings.Contains(stdout.String(), "usage:") {
@@ -97,7 +97,7 @@ func TestHelpExitsZeroAndPrintsUsageOnStdout(t *testing.T) {
 func TestMultiWordTermAndFlags(t *testing.T) {
 	var stdout strings.Builder
 	stub := &stubSearcher{res: contract.Result{Store: "mas", Query: "leche entera", Hits: []contract.Hit{}}}
-	if err := run([]string{"search", "leche", "entera", "--limit", "2", "--json"}, &stdout, &strings.Builder{}, stub); err != nil {
+	if err := run([]string{"search", "leche", "entera", "--limit", "2", "--json"}, &stdout, &strings.Builder{}, deps{search: stub}); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	if stub.term != "leche entera" || stub.limit != 2 || stub.page != 1 {
@@ -127,7 +127,7 @@ func TestTableMarksAnUnpublishedPrice(t *testing.T) {
 func TestFetchErrorExitsOne(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	stub := &stubSearcher{err: errors.New("mas: HTTP 403: Forbidden")}
-	err := run([]string{"search", "leche", "--json"}, &stdout, &stderr, stub)
+	err := run([]string{"search", "leche", "--json"}, &stdout, &stderr, deps{search: stub})
 	if err == nil {
 		t.Fatal("expected an error")
 	}

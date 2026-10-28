@@ -16,20 +16,33 @@ import (
 	"multisuper/internal/mas"
 )
 
-const usage = `mas searches the supermercadosmas.com catalog.
+const usage = `mas searches the supermercadosmas.com catalog and keeps an anonymous guest cart.
 
 usage: mas search <term> [--limit N] [--page N] [--json]
+       mas cart add <sku> <qty> [--json]
+       mas cart get [--json]
+       mas cart remove <sku> [--json]
+       mas cart clear [--json]
 
 flags:
   --limit N  products per page, 1-100 (default 20)
   --page N   result page, 1 or more (default 1)
   --json     print the shared contract JSON envelope instead of a table
 
+The cart never places an order: see "mas cart --help".
+
 exit status: 0 success, 1 fetch or parse error, 2 usage error.`
 
 // searcher is the slice of mas.Client the command needs, so tests run offline.
 type searcher interface {
 	Search(ctx context.Context, term string, page, limit int) (contract.Result, error)
+}
+
+// deps is everything run reaches for, so tests inject stubs and stay offline.
+type deps struct {
+	search searcher
+	cart   cartAPI
+	store  cartStore
 }
 
 // usageError marks a bad invocation: exit 2, distinct from a fetch or parse error.
@@ -45,18 +58,29 @@ func exitCode(err error) int {
 }
 
 func main() {
-	if err := run(os.Args[1:], os.Stdout, os.Stderr, mas.New()); err != nil {
+	client := mas.New()
+	path, err := mas.DefaultCartPath()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "mas:", err)
+		os.Exit(1)
+	}
+	d := deps{search: client, cart: client, store: mas.CartFile{Path: path}}
+	if err := run(os.Args[1:], os.Stdout, os.Stderr, d); err != nil {
 		fmt.Fprintln(os.Stderr, "mas:", err)
 		os.Exit(exitCode(err))
 	}
 }
 
-func run(args []string, stdout, stderr io.Writer, s searcher) error {
+func run(args []string, stdout, stderr io.Writer, d deps) error {
 	// S3: asking for help is not an error, in any position. Left to the flag package
 	// it returns flag.ErrHelp through run, which would exit 1.
 	for _, arg := range args {
 		switch arg {
 		case "-h", "--h", "-help", "--help":
+			if len(args) > 0 && args[0] == "cart" {
+				fmt.Fprintln(stdout, cartUsage)
+				return nil
+			}
 			fmt.Fprintln(stdout, usage)
 			return nil
 		}
@@ -67,7 +91,9 @@ func run(args []string, stdout, stderr io.Writer, s searcher) error {
 	}
 	switch args[0] {
 	case "search":
-		return runSearch(args[1:], stdout, stderr, s)
+		return runSearch(args[1:], stdout, stderr, d.search)
+	case "cart":
+		return runCart(args[1:], stdout, stderr, d.cart, d.store)
 	case "help":
 		fmt.Fprintln(stdout, usage)
 		return nil
