@@ -1,8 +1,18 @@
 # multisuper
 
 Seis binarios, uno por cadena de supermercados, que convierten el catálogo de cada tienda en
-**un mismo objeto JSON**. Nacen para alimentar un agregador web que busca un producto en todas
-las cadenas y compara €/unidad; el carrito de cada tienda es una fase posterior.
+**un mismo objeto JSON**.
+
+El producto es una **cesta virtual**: el usuario elige los artículos que quiere y el sistema le
+dice **cuánto le costaría esa cesta en cada supermercado y qué le faltaría en cada uno**, para
+que decida dónde comprar. La cesta de la tienda —la de verdad, la que se paga— es solo el
+**paso de entrega** de la cadena elegida, no el objetivo.
+
+```
+multisuper find   leche          → qué hay y a qué precio en las seis cadenas
+multisuper basket -f cesta.json  → cuánto costaría TU cesta en cada una
+<cadena> cart                     → llenar la cesta real de la cadena elegida
+```
 
 ```
 dia        → dia.es                          API de la app Android (endpoint /reduced)
@@ -24,7 +34,45 @@ bin/dia search leche entera        # tabla legible por defecto
 Comando único en todas las cadenas: `search <término> [--limit N] [--json]`.
 `aldi` añade `--region pen|can|bal` y `mas` añade `--page N`.
 
-## Cestas
+## Cesta virtual
+
+El comando que responde a «¿dónde compro?»:
+
+```bash
+multisuper basket -f cesta.json --json
+```
+
+```json
+{"items":[{"query":"huevos","quantity":1}],"items_resolved":null}
+```
+
+Entrada: `{"items":[{"query":"leche entera","quantity":2}]}`, o `-f -` por stdin.
+Salida: por cadena, **total en céntimos enteros** (nunca flotantes), cobertura (`3/3`), los
+artículos que **faltan** y, cuando la consulta falló, su código de error. El campo `ranking`
+contiene **solo las cadenas que cubren la cesta completa**, de más barata a más cara: si
+ninguna la cubre, el ranking va vacío y el comando sale con `1`. Eso es una respuesta, no un
+fallo.
+
+La primera pasada real, con leche entera + pan de molde + huevos: **DIA 4,17 €**, MAS 4,38 €,
+ALDI 4,88 €; LIDL no tenía leche entera; ALCAMPO estaba en ventana de WAF y CARREFOUR sin
+cuota.
+
+**El emparejamiento es una propuesta, no una verdad.** Con nombres de una sola palabra el
+algoritmo confunde categorías: en esa misma pasada «huevos» se resolvió como *huevos de
+chocolate* en ALDI y como un *cuecehuevos* en LIDL, y con huevos de verdad ALDI habría
+ganado. Por eso el comando ofrece candidatos puntuados por artículo y la cesta acepta la
+elección explícita del usuario:
+
+```json
+{"items":[{"store":"dia","id":"305802","name":"Huevos extragrandes L/XL ... Dia 6 unidades","quantity":2}]}
+```
+
+Una entrada fijada se resuelve **confirmando el id exacto**; si no aparece, esa cadena
+responde `stale` (el producto existe para el usuario pero hoy no se puede confirmar) y queda
+fuera del ranking. Nunca se sustituye por otro producto: un total equivocado es peor que un
+total ausente.
+
+## Cestas de tienda (paso de entrega)
 
 Solo `dia` llena una cesta hoy, y de punta a punta:
 
