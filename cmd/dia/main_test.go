@@ -27,6 +27,9 @@ func (s *stubSearcher) Search(_ context.Context, term string, limit int) (contra
 	return s.res, s.err
 }
 
+// searchDeps is a deps with only the search side wired, for the search tests.
+func searchDeps(s searcher) deps { return deps{search: s} }
+
 func sample() contract.Result {
 	return contract.Result{Store: "dia", Query: "leche", Count: 1, Hits: []contract.Hit{{
 		Store: "dia", ID: "74720P6", Name: "Leche entera Asturiana pack 6 x 1.5 L",
@@ -40,8 +43,8 @@ func TestJSONModePrintsOnlyTheContract(t *testing.T) {
 	stub := &stubSearcher{res: sample()}
 	var out, errOut bytes.Buffer
 
-	if code := run([]string{"search", "leche", "--limit", "3", "--json"}, &out, &errOut, stub); code != 0 {
-		t.Fatalf("exit = %d, stderr = %s", code, errOut.String())
+	if err := run([]string{"search", "leche", "--limit", "3", "--json"}, &out, &errOut, searchDeps(stub)); err != nil {
+		t.Fatalf("exit = %d, stderr = %s", exitCode(err), errOut.String())
 	}
 	if stub.term != "leche" || stub.lim != 3 {
 		t.Fatalf("search got term=%q limit=%d", stub.term, stub.lim)
@@ -66,8 +69,8 @@ func TestJSONModePrintsOnlyTheContract(t *testing.T) {
 
 func TestTableMode(t *testing.T) {
 	var out, errOut bytes.Buffer
-	if code := run([]string{"search", "leche"}, &out, &errOut, &stubSearcher{res: sample()}); code != 0 {
-		t.Fatalf("exit = %d, stderr = %s", code, errOut.String())
+	if err := run([]string{"search", "leche"}, &out, &errOut, searchDeps(&stubSearcher{res: sample()})); err != nil {
+		t.Fatalf("err = %v, stderr = %s", err, errOut.String())
 	}
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
 	if len(lines) != 2 {
@@ -96,8 +99,8 @@ func TestTableWithoutPerUnitOrStock(t *testing.T) {
 		t.Fatal(err)
 	}
 	var out bytes.Buffer
-	if code := run([]string{"search", "x"}, &out, io.Discard, &stubSearcher{res: res}); code != 0 {
-		t.Fatalf("exit = %d", code)
+	if err := run([]string{"search", "x"}, &out, io.Discard, searchDeps(&stubSearcher{res: res})); err != nil {
+		t.Fatalf("err = %v", err)
 	}
 	row := strings.Split(strings.TrimSpace(out.String()), "\n")[1]
 	if !regexp.MustCompile(`^X1\s+Bolsa\s+0\.05\s+-\s+-$`).MatchString(row) {
@@ -111,8 +114,8 @@ func TestTableMarksAnUnpublishedPrice(t *testing.T) {
 		Store: "dia", ID: "X1", Name: "Bolsa", Available: contract.Bool(true),
 	}}}
 	var out bytes.Buffer
-	if code := run([]string{"search", "x"}, &out, io.Discard, &stubSearcher{res: res}); code != 0 {
-		t.Fatalf("exit = %d", code)
+	if err := run([]string{"search", "x"}, &out, io.Discard, searchDeps(&stubSearcher{res: res})); err != nil {
+		t.Fatalf("err = %v", err)
 	}
 	row := strings.Split(strings.TrimSpace(out.String()), "\n")[1]
 	if !regexp.MustCompile(`^X1\s+Bolsa\s+-\s+-\s+yes$`).MatchString(row) {
@@ -125,23 +128,23 @@ func TestTableMarksAnUnpublishedPrice(t *testing.T) {
 
 func TestFetchErrorGoesToStderrAndExitsOne(t *testing.T) {
 	var out, errOut bytes.Buffer
-	stub := &stubSearcher{err: errors.New("boom")}
-	if code := run([]string{"search", "leche", "--json"}, &out, &errOut, stub); code != 1 {
-		t.Fatalf("exit = %d", code)
+	err := run([]string{"search", "leche", "--json"}, &out, &errOut, searchDeps(&stubSearcher{err: errors.New("boom")}))
+	if code := exitCode(err); code != 1 {
+		t.Fatalf("exit = %d, want 1", code)
 	}
 	if out.Len() != 0 {
 		t.Fatalf("stdout must stay empty, got %q", out.String())
 	}
-	if !strings.Contains(errOut.String(), "boom") {
-		t.Fatalf("stderr = %q", errOut.String())
+	if !strings.Contains(err.Error(), "boom") {
+		t.Fatalf("err = %v, want the fetch error", err)
 	}
 }
 
 func TestUsageErrors(t *testing.T) {
 	for _, args := range [][]string{{}, {"search"}, {"product", "x"}} {
 		var out, errOut bytes.Buffer
-		if code := run(args, &out, &errOut, &stubSearcher{}); code != 2 {
-			t.Errorf("args %v: exit = %d, want 2", args, code)
+		if err := run(args, &out, &errOut, searchDeps(&stubSearcher{})); exitCode(err) != 2 {
+			t.Errorf("args %v: exit = %d, want 2", args, exitCode(err))
 		}
 		if out.Len() != 0 {
 			t.Errorf("args %v: stdout = %q", args, out.String())
@@ -165,8 +168,8 @@ func TestHelpInAnyPositionExitsZeroWithUsageOnStdout(t *testing.T) {
 	} {
 		stub := &stubSearcher{}
 		var out, errOut bytes.Buffer
-		if code := run(args, &out, &errOut, stub); code != 0 {
-			t.Errorf("%v: exit = %d, want 0 (stderr %q)", args, code, errOut.String())
+		if err := run(args, &out, &errOut, searchDeps(stub)); err != nil {
+			t.Errorf("%v: err = %v, want nil (stderr %q)", args, err, errOut.String())
 		}
 		if !strings.Contains(out.String(), "usage: dia search") {
 			t.Errorf("%v: stdout = %q, want the usage", args, out.String())
@@ -184,8 +187,8 @@ func TestHelpInAnyPositionExitsZeroWithUsageOnStdout(t *testing.T) {
 func TestMultiWordTermIsSearchedAsOnePhrase(t *testing.T) {
 	stub := &stubSearcher{res: sample()}
 	var out, errOut bytes.Buffer
-	if code := run([]string{"search", "leche", "entera", "--limit", "3", "--json"}, &out, &errOut, stub); code != 0 {
-		t.Fatalf("exit = %d, stderr = %s", code, errOut.String())
+	if err := run([]string{"search", "leche", "entera", "--limit", "3", "--json"}, &out, &errOut, searchDeps(stub)); err != nil {
+		t.Fatalf("err = %v, stderr = %s", err, errOut.String())
 	}
 	if stub.term != "leche entera" {
 		t.Fatalf("searcher got term %q, want %q", stub.term, "leche entera")
@@ -200,8 +203,9 @@ func TestLimitOutOfRangeIsRejected(t *testing.T) {
 	for _, limit := range []string{"0", "-1", "101", "1000"} {
 		stub := &stubSearcher{res: sample()}
 		var out, errOut bytes.Buffer
-		if code := run([]string{"search", "leche", "--limit", limit, "--json"}, &out, &errOut, stub); code != 2 {
-			t.Errorf("--limit %s: exit = %d, want 2", limit, code)
+		err := run([]string{"search", "leche", "--limit", limit, "--json"}, &out, &errOut, searchDeps(stub))
+		if exitCode(err) != 2 {
+			t.Errorf("--limit %s: exit = %d, want 2", limit, exitCode(err))
 		}
 		if out.Len() != 0 {
 			t.Errorf("--limit %s: stdout = %q, want nothing", limit, out.String())
@@ -209,8 +213,9 @@ func TestLimitOutOfRangeIsRejected(t *testing.T) {
 		if stub.term != "" || stub.lim != 0 {
 			t.Errorf("--limit %s: searcher was called with term=%q limit=%d", limit, stub.term, stub.lim)
 		}
-		if !strings.Contains(errOut.String(), "limit must be between 1 and 100") {
-			t.Errorf("--limit %s: stderr = %q", limit, errOut.String())
+		// The message reaches stderr from main, which prints every error once.
+		if err == nil || !strings.Contains(err.Error(), "limit must be between 1 and 100") {
+			t.Errorf("--limit %s: err = %v", limit, err)
 		}
 	}
 }

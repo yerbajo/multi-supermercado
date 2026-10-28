@@ -58,10 +58,15 @@ var platformHeaders = map[string]string{
 // ErrUnavailable reports that dia.es kept answering 429/503 after all retries.
 var ErrUnavailable = errors.New("dia search unavailable after retries")
 
-// Client queries the DIA search API. The zero value is not usable; use NewClient.
+// Client queries the DIA search API and keeps an anonymous cart. The zero value is
+// not usable; use NewClient.
 type Client struct {
 	BaseURL string
 	HTTP    *http.Client
+
+	// session is the anonymous cart session cookie, the whole cart identity. It is
+	// empty until the first cart call; see SessionID and SetSessionID.
+	session string
 }
 
 // NewClient returns a client with the app's headers and the timeout dia.es expects.
@@ -159,9 +164,10 @@ func absolute(base, path string) string {
 	return base + "/" + strings.TrimPrefix(path, "/")
 }
 
-// newSearchRequest builds one attempt: the /reduced endpoint with the app's headers.
-func newSearchRequest(ctx context.Context, endpoint string) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+// newRequest builds one attempt against dia.es with the app's platform headers. Every
+// endpoint needs them; the cart adds its session cookie on top.
+func newRequest(ctx context.Context, method, endpoint string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
 	if err != nil {
 		return nil, fmt.Errorf("dia: build request: %w", err)
 	}
@@ -175,7 +181,7 @@ func newSearchRequest(ctx context.Context, endpoint string) (*http.Request, erro
 func (c *Client) get(ctx context.Context, endpoint string) ([]byte, error) {
 	var lastErr error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		req, err := newSearchRequest(ctx, endpoint)
+		req, err := newRequest(ctx, http.MethodGet, endpoint, nil)
 		if err != nil {
 			return nil, err
 		}
