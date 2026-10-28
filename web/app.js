@@ -35,6 +35,9 @@ const ICON = {
   check: '<svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 6.4 4.8 9.2 10 3.2" stroke="currentColor" stroke-width="2"/></svg>',
   warn: '<svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="6" r="4.6" stroke="currentColor" stroke-width="1.5"/><path d="M6 3.6v2.8" stroke="currentColor" stroke-width="1.5"/><path d="M6 8.2v.3" stroke="currentColor" stroke-width="1.7"/></svg>',
   x: '<svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="6" r="4.6" stroke="currentColor" stroke-width="1.5"/><path d="M3.9 3.9l4.2 4.2M8.1 3.9 3.9 8.1" stroke="currentColor" stroke-width="1.5"/></svg>',
+  // The shopping basket: the same shape as the brand mark, drawn here so the pin control
+  // is an inline mark in currentColor — no file, no URL, no icon font (S14).
+  basket: '<svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M2.6 6.4h14.8l-1.5 8.4a1.6 1.6 0 0 1-1.6 1.3H5.7a1.6 1.6 0 0 1-1.6-1.3L2.6 6.4Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M7.3 6.3a2.7 2.7 0 0 1 5.4 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
 };
 
 // One brand mark per chain, instantiated from the sprite in index.html. The mark is the
@@ -276,12 +279,16 @@ function updateSearchStatus() {
     " en " + Object.keys(chainPages).length + " de " + s.asked + " cadenas para «" + s.term + "».";
 }
 
+// The pin is an icon-only button: the basket mark is the whole label, so its accessible name
+// carries both the product and the chain, and the title carries the same words for the mouse
+// (an icon with no name is not a control, S14). The action is unchanged.
 function hitRow(store, h, term) {
   const name = nameOf(store);
+  const label = "Añadir " + (h.size ? h.name + " " + h.size : h.name) + " a la cesta de " + name;
   return `<li>
       <span class="pname">${esc(h.name)}${h.size ? " · " + esc(h.size) : ""}</span>
       <span class="pprice">${h.price == null ? "sin precio" : euros(h.price)}</span>
-      <button class="btn btn-quiet btn-small" type="button" data-pin="${esc(store)}" data-id="${esc(h.id)}" data-name="${esc(h.name)}" data-term="${esc(term)}">Elegir en ${name}</button>
+      <button class="btn btn-quiet btn-icon" type="button" data-pin="${esc(store)}" data-id="${esc(h.id)}" data-name="${esc(h.name)}" data-term="${esc(term)}" aria-label="${esc(label)}" title="${esc(label)}">${ICON.basket}</button>
     </li>`;
 }
 
@@ -405,83 +412,185 @@ function basketItem(line) {
   return state.basket.items.find((it) => (it.line || it.query) === line.id) || null;
 }
 
-function lineNote(line) {
-  const pins = Object.keys(line.pins).length;
-  const it = basketItem(line);
-  if (!it) return pins ? pins + (pins === 1 ? " producto elegido a mano" : " productos elegidos a mano") : "comparando en las seis cadenas…";
-  const total = state.basket ? state.basket.chains.length : 6;
-  const parts = [Object.keys(it.resolved).length + " de " + total + " cadenas la tienen"];
-  if (it.missing.length) parts.push("falta en " + it.missing.map(nameOf).join(", "));
-  if (it.stale.length) parts.push("sin confirmar en " + it.stale.map(nameOf).join(", "));
-  if (pins) parts.push(pins === 1 ? "1 producto elegido a mano" : pins + " productos elegidos a mano");
-  return parts.join(" · ");
-}
-
 function candidateItem(line) {
   if (!state.candidates) return null;
   return state.candidates.items.find((it) => it.line === line.id) || null;
 }
 
-function choicesHTML(line) {
+// One chain's chooser: the select that pins that chain's product for the line. It sits
+// inside the chain's own section, so it only ever offers the candidates of that chain.
+function choiceFor(line, store) {
+  const name = nameOf(store);
+  const answer = state.candidates && state.candidates.chains.find((c) => c.store === store);
+  if (answer && answer.error) {
+    return `<div class="choice"><span class="choice-chain">${name}</span>
+      <span class="choice-state">no disponible ahora · <button class="linkbtn" type="button" data-retry="candidates">reintentar</button></span></div>`;
+  }
   const cand = candidateItem(line);
-  return chainOrder().map((store) => {
-    const name = nameOf(store);
-    const answer = state.candidates && state.candidates.chains.find((c) => c.store === store);
-    if (answer && answer.error) {
-      return `<div class="choice"><span class="choice-chain">${name}</span>
-        <span class="choice-state">no disponible ahora · <button class="linkbtn" type="button" data-retry="candidates">reintentar</button></span></div>`;
-    }
-    const list = cand && cand.candidates && cand.candidates[store];
-    if (!list) {
-      return `<div class="choice"><span class="choice-chain">${name}</span>
-        <span class="choice-state">${state.candidatesStale ? "pidiendo sus productos…" : "sin candidatos para esta línea"}</span></div>`;
-    }
-    const pin = line.pins[store];
-    const current = pin ? pin.id : "";
-    const options = [`<option value=""${current ? "" : " selected"}>Automático: la mejor coincidencia para «${esc(line.id)}»</option>`]
-      .concat(list.map((c) => `<option value="${esc(c.id)}" data-name="${esc(c.name)}"${c.id === current ? " selected" : ""}>${esc(c.name)} — ${money(c.unitCents)}${c.current ? " (el actual)" : ""}</option>`));
-    return `<label class="choice"><span class="choice-chain">${name}</span>
+  const list = cand && cand.candidates && cand.candidates[store];
+  if (!list) {
+    return `<div class="choice"><span class="choice-chain">${name}</span>
+      <span class="choice-state">${state.candidatesStale ? "pidiendo sus productos…" : "sin candidatos para esta línea"}</span></div>`;
+  }
+  const pin = line.pins[store];
+  const current = pin ? pin.id : "";
+  const options = [`<option value=""${current ? "" : " selected"}>Automático: la mejor coincidencia para «${esc(line.id)}»</option>`]
+    .concat(list.map((c) => `<option value="${esc(c.id)}" data-name="${esc(c.name)}"${c.id === current ? " selected" : ""}>${esc(c.name)} — ${money(c.unitCents)}${c.current ? " (el actual)" : ""}</option>`));
+  return `<label class="choice"><span class="choice-chain">${name}</span>
       <select data-line="${esc(line.id)}" data-store="${esc(store)}" aria-label="Producto de la línea ${esc(line.id)} en ${name}">${options.join("")}</select></label>`;
-  }).join("");
 }
 
-function lineEl(line) {
-  const li = document.createElement("li");
-  li.className = "line";
-  li.dataset.line = line.id;
-  li.innerHTML = `
+// The chain is named on both ends of the quantity control: the same basket line appears in
+// every section, so «+ de leche» alone would be ambiguous from a screen reader (S14).
+function stepperHTML(line, store) {
+  const where = esc(line.id) + " en " + esc(nameOf(store));
+  return `<button type="button" data-step="-1" aria-label="Quitar una unidad de ${where}"${line.quantity <= 1 ? " disabled" : ""}>−</button>
+    <span class="q">${line.quantity}</span>
+    <button type="button" data-step="1" aria-label="Añadir una unidad de ${where}"${line.quantity >= 9 ? " disabled" : ""}>+</button>`;
+}
+
+// What this chain would put in the basket for this line, in this chain's own words and its
+// own cents: the product it would deliver, the line price it charges and whether the
+// shopper pinned it by hand.
+function sectionNote(line, store, r) {
+  if (!r) return "comparando en " + nameOf(store) + "…";
+  const parts = ["«" + line.id + "»"];
+  if (line.quantity > 1) parts.push(money(r.unitCents) + "/ud");
+  parts.push(money(r.lineCents));
+  if (line.pins[store]) parts.push("elegido a mano");
+  return parts.join(" · ");
+}
+
+// One line inside one section. The same basket line is drawn once per chain, each with that
+// chain's product, price and chooser: the keys are line + chain, never line alone.
+function sectionLine(line, store) {
+  const it = basketItem(line);
+  const r = it && it.resolved[store];
+  return `<li class="line" data-line="${esc(line.id)}" data-store="${esc(store)}">
     <div class="line-head">
       <span>
-        <span class="line-name">${esc(line.id)}</span>
-        <span class="line-note">${esc(lineNote(line))}</span>
+        <span class="line-name">${esc(r ? r.name : "comparando…")}</span>
+        <span class="line-note">${esc(sectionNote(line, store, r))}</span>
       </span>
-      <span class="stepper">
-        <button type="button" data-step="-1" aria-label="Quitar una unidad de ${esc(line.id)}"${line.quantity <= 1 ? " disabled" : ""}>−</button>
-        <span class="q">${line.quantity}</span>
-        <button type="button" data-step="1" aria-label="Añadir una unidad de ${esc(line.id)}"${line.quantity >= 9 ? " disabled" : ""}>+</button>
-      </span>
+      <span class="stepper">${stepperHTML(line, store)}</span>
     </div>
-    <details class="chooser">
-      <summary>Elegir producto por cadena</summary>
-      <div class="choices">${choicesHTML(line)}</div>
-    </details>`;
+    <details class="chooser" data-line="${esc(line.id)}" data-store="${esc(store)}">
+      <summary>Elegir producto en ${esc(nameOf(store))}</summary>
+      <div class="choices">${choiceFor(line, store)}</div>
+    </details>
+  </li>`;
+}
+
+// The basket, read per supermarket: one section per chain that answered, with its mark, its
+// name and the subtotal the payload already summed. A chain that failed is a compact line
+// instead, and a chain that cannot serve a line simply does not list it (S14).
+function chainSection(chain) {
+  const store = chain.store;
+  const lines = state.lines.filter((line) => {
+    const it = basketItem(line);
+    return !it || Boolean(it.resolved[store]);
+  });
+  const sub = chain.totalCents == null ? "—" : money(chain.totalCents);
+  const li = document.createElement("li");
+  li.className = "basket-chain";
+  li.dataset.chain = store;
+  li.innerHTML = `
+    <div class="bc-head">
+      ${logo(store)}
+      <span class="bc-name">${esc(nameOf(store))}</span>
+      ${chain.coverage ? `<span class="tag bc-tag">${esc(chain.coverage)}</span>` : ""}
+      <span class="bc-sub">${sub}</span>
+    </div>
+    <ul class="bc-lines">${lines.map((line) => sectionLine(line, store)).join("")}</ul>
+    ${lines.length ? "" : '<p class="bc-none">Hoy esta cadena no resuelve ninguna línea de tu cesta.</p>'}`;
   return li;
+}
+
+// Before the first answer there is nothing to group yet, so the sections are only named:
+// one per chain in the table, with the steppers live and no invented subtotal.
+function sectionsFor() {
+  if (state.basket) return state.basket.chains.filter((c) => !c.error);
+  return chainOrder().map((store) => ({ store: store, totalCents: null, coverage: "" }));
+}
+
+// The panel is rebuilt only when the shape changes — a line added or removed, a chain's
+// answer arriving or failing, the set of sections moving — so a stepper or a select keeps
+// its focus while the prices refresh underneath.
+function linesKey() {
+  const per = state.lines.map((line) => {
+    const it = basketItem(line);
+    return line.id + ":" + (it ? Object.keys(it.resolved).sort().join("+") : "?");
+  }).join("|");
+  const failed = state.basket ? state.basket.chains.filter((c) => c.error).map((c) => c.store).join(",") : "?";
+  return per + "#" + failed;
+}
+
+let renderedKey = "";
+
+function syncLines() {
+  // The subtotal is the payload's, moved into place when a quantity changes: the section is
+  // not rebuilt, so the stepper under the finger keeps its focus.
+  for (const sec of document.querySelectorAll(".basket-chain[data-chain]")) {
+    const chain = state.basket && state.basket.chains.find((c) => c.store === sec.dataset.chain);
+    if (!chain) continue;
+    const sub = sec.querySelector(".bc-sub");
+    if (sub) sub.textContent = chain.totalCents == null ? "—" : money(chain.totalCents);
+    const tag = sec.querySelector(".bc-tag");
+    if (tag && chain.coverage) tag.textContent = chain.coverage;
+  }
+  for (const el of document.querySelectorAll(".line[data-line]")) {
+    const line = state.lines.find((l) => l.id === el.dataset.line);
+    if (!line) continue;
+    const q = el.querySelector(".q");
+    if (q) q.textContent = line.quantity;
+    for (const btn of el.querySelectorAll("button[data-step]")) {
+      btn.disabled = Number(btn.dataset.step) < 0 ? line.quantity <= 1 : line.quantity >= 9;
+    }
+    const it = basketItem(line);
+    const r = it && it.resolved[el.dataset.store];
+    const name = el.querySelector(".line-name");
+    if (name) name.textContent = r ? r.name : "comparando…";
+    const note = el.querySelector(".line-note");
+    if (note) note.textContent = sectionNote(line, el.dataset.store, r);
+  }
 }
 
 function renderLines() {
   const list = $("lines");
   const open = new Set([...document.querySelectorAll("details.chooser[open]")]
-    .map((d) => d.closest(".line").dataset.line));
+    .map((d) => d.dataset.line + "@" + d.dataset.store));
+  // A rebuild must not drop the keyboard: remember which control of which line had the
+  // focus and put it back on the same one.
+  const active = document.activeElement && list.contains(document.activeElement) ? document.activeElement : null;
+  const box = active && active.closest(".line");
+  const focus = box ? {
+    line: box.dataset.line, store: box.dataset.store,
+    sel: active.matches("summary") ? "summary" : active.matches("select") ? "select"
+      : active.dataset.step ? 'button[data-step="' + active.dataset.step + '"]' : null,
+  } : null;
   list.innerHTML = "";
+  renderedKey = linesKey();
   if (!state.lines.length) {
     list.innerHTML = '<li class="empty">Todavía no hay líneas. Busca un artículo y añádelo.</li>';
     return;
   }
-  for (const line of state.lines) list.appendChild(lineEl(line));
-  for (const id of open) {
-    const det = [...document.querySelectorAll("details.chooser")]
-      .find((d) => d.closest(".line").dataset.line === id);
-    if (det) det.open = true;
+  if (!state.basket) list.innerHTML = '<li class="empty">Comparando tu cesta en las seis cadenas…</li>';
+  for (const chain of sectionsFor()) list.appendChild(chainSection(chain));
+  const failed = state.basket ? state.basket.chains.filter((c) => c.error).map(failureOf) : [];
+  if (failed.length) {
+    const li = document.createElement("li");
+    li.className = "fail-line";
+    li.innerHTML = failBody(failed, "basket");
+    list.appendChild(li);
+  }
+  for (const det of document.querySelectorAll("details.chooser")) {
+    if (open.has(det.dataset.line + "@" + det.dataset.store)) det.open = true;
+  }
+  if (focus && focus.sel) {
+    const line = [...list.querySelectorAll(".line")]
+      .find((l) => l.dataset.line === focus.line && l.dataset.store === focus.store);
+    const target = line && line.querySelector(focus.sel);
+    if (target) target.focus();
   }
 }
 
@@ -562,10 +671,9 @@ async function ensureCandidates(fresh) {
   } finally {
     state.candidatesLoading = false;
     for (const det of document.querySelectorAll("details.chooser[open]")) {
-      const id = det.closest(".line").dataset.line;
-      const line = state.lines.find((l) => l.id === id);
+      const line = state.lines.find((l) => l.id === det.dataset.line);
       const box = det.querySelector(".choices");
-      if (line && box) box.innerHTML = choicesHTML(line);
+      if (line && box) box.innerHTML = choiceFor(line, det.dataset.store);
     }
   }
 }
@@ -628,6 +736,11 @@ function renderComparison() {
   $("comp-empty").hidden = true;
   $("down-h").hidden = true;
   $("down-sub").hidden = true;
+
+  // The basket panel follows the same answer: the sections appear when the chains answer,
+  // and a price moves in place without stealing the focus of a stepper or a select.
+  if (linesKey() !== renderedKey) renderLines();
+  else syncLines();
 
   if (!state.lines.length) {
     $("comp-meta").textContent = "Sin cesta todavía";
@@ -731,12 +844,6 @@ function renderComparison() {
   if (basket.ranking.length && !best) {
     $("comp-note").hidden = false;
     $("comp-note").textContent = "Has descartado todas las tiendas completas: vuelve a marcar alguna para ver la recomendación.";
-  }
-
-  for (const li of document.querySelectorAll(".line[data-line]")) {
-    const line = state.lines.find((l) => l.id === li.dataset.line);
-    const text = li.querySelector(".line-note");
-    if (line && text) text.textContent = lineNote(line);
   }
 
   if (best) {

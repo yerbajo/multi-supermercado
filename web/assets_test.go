@@ -429,3 +429,169 @@ func TestSearchPagesPerChain(t *testing.T) {
 		}
 	}
 }
+
+// TestBasketIsGroupedByChain pins S14: the basket is read per supermarket. One section per
+// chain that answered carries that chain's mark, its name and the subtotal the payload
+// already summed, and inside it the lines that chain resolves — the same basket line
+// legitimately appears in several sections, each with its own product and price.
+func TestBasketIsGroupedByChain(t *testing.T) {
+	js := read(t, "app.js")
+
+	sections := fnBody(t, js, "function sectionsFor(")
+	if !strings.Contains(sections, "!c.error") {
+		t.Error("the basket builds a section for a chain that did not answer: that is a failure line, not a section")
+	}
+	section := fnBody(t, js, "function chainSection(")
+	for what, want := range map[string]string{
+		"a section keyed by chain": "dataset.chain",
+		"the chain's mark":         "logo(store)",
+		"the chain's name":         "nameOf(store)",
+		"the payload's subtotal":   "money(chain.totalCents)",
+		"the lines it resolves":    "it.resolved[store]",
+		"a stated empty section":   "no resuelve ninguna línea",
+	} {
+		if !strings.Contains(section, want) {
+			t.Errorf("%s: chainSection is missing %q", what, want)
+		}
+	}
+	// The subtotal is the payload's: the section never adds a line price up in JS.
+	if strings.Contains(section, "lineCents") {
+		t.Error("chainSection sums line prices instead of using chains[].totalCents")
+	}
+
+	// A line element is keyed by line *and* chain, so the same line is not deduped across
+	// sections and each section shows the product and the price of its own supermarket.
+	line := fnBody(t, js, "function sectionLine(")
+	for what, want := range map[string]string{
+		"line identity":   `data-line="${esc(line.id)}"`,
+		"chain identity":  `data-store="${esc(store)}"`,
+		"its own product": "r.name",
+		"its own price":   "sectionNote(line, store, r)",
+		"the stepper":     "stepperHTML(line, store)",
+	} {
+		if !strings.Contains(line, want) {
+			t.Errorf("%s: sectionLine is missing %q", what, want)
+		}
+	}
+	// The line price is that chain's lineCents, never the unit price times the quantity.
+	note := fnBody(t, js, "function sectionNote(")
+	if !strings.Contains(note, "r.lineCents") {
+		t.Error("a section line does not show its own chain's line price")
+	}
+	if strings.Contains(note, "r.unitCents *") || strings.Contains(note, "line.quantity *") {
+		t.Error("the line price is recomputed from the unit price")
+	}
+	// Missing and stale lines are not section lines: the chain that cannot serve one simply
+	// does not list it, and the coverage lines and the failure line keep saying so.
+	if strings.Contains(line, "it.missing") || strings.Contains(line, "it.stale") {
+		t.Error("a section lists a line the chain does not resolve")
+	}
+
+	// The per-chain product chooser stays inside the section: a native disclosure, so it is
+	// keyboard-operable, asking for the candidates of that chain only.
+	for what, want := range map[string]string{
+		"disclosure":     `<details class="chooser"`,
+		"summary":        "<summary>Elegir producto en ",
+		"one chain only": "choiceFor(line, store)",
+	} {
+		if !strings.Contains(line, want) {
+			t.Errorf("%s: the basket line is missing %q", what, want)
+		}
+	}
+	choice := fnBody(t, js, "function choiceFor(")
+	for want, what := range map[string]string{
+		`data-store="${esc(store)}"`:       "the select of one chain",
+		`aria-label="Producto de la línea`: "the select's accessible name",
+	} {
+		if !strings.Contains(choice, want) {
+			t.Errorf("%s is missing %q", what, want)
+		}
+	}
+	if strings.Contains(choice, "chainOrder()") {
+		t.Error("the in-section chooser still renders every chain instead of its own")
+	}
+	if !strings.Contains(js, `select.dataset.line`) {
+		t.Error("the per-chain select is not wired to its line")
+	}
+
+	// A quantity change moves the section's subtotal in place: the payload's cents, never a
+	// sum in JS, and no rebuild that would steal the focus of the stepper.
+	sync := fnBody(t, js, "function syncLines(")
+	for want, what := range map[string]string{
+		`".bc-sub"`:               "the section subtotal update",
+		"money(chain.totalCents)": "the subtotal from the payload",
+		`".bc-tag"`:               "the coverage tag update",
+	} {
+		if !strings.Contains(sync, want) {
+			t.Errorf("%s is missing %q", what, want)
+		}
+	}
+
+	// A chain that did not answer keeps one compact line inside the basket too, with the
+	// retry the comparison has.
+	panel := fnBody(t, js, "function renderLines(")
+	for want, what := range map[string]string{
+		`failBody(failed, "basket")`: "the compact failure line in the basket",
+		`"fail-line"`:                "the compact line's class",
+	} {
+		if !strings.Contains(panel, want) {
+			t.Errorf("%s is missing %q", what, want)
+		}
+	}
+}
+
+// TestPinIsABasketIconButton pins the second half of S14: «elegir en <cadena>» is an
+// icon-only button with an inline basket mark, named for a screen reader by both the
+// product and the chain, with a mouse title and a 40 px hit area.
+func TestPinIsABasketIconButton(t *testing.T) {
+	js, css := read(t, "app.js"), read(t, "styles.css")
+	row := fnBody(t, js, "function hitRow(")
+	for what, want := range map[string]string{
+		"icon button":     `class="btn btn-quiet btn-icon"`,
+		"product in name": "h.name",
+		"chain in name":   `a la cesta de " + name`,
+		"accessible name": `aria-label="${esc(label)}"`,
+		"mouse title":     `title="${esc(label)}"`,
+		"the same action": `data-pin="${esc(store)}"`,
+	} {
+		if !strings.Contains(row, want) {
+			t.Errorf("%s: hitRow is missing %q", what, want)
+		}
+	}
+
+	// The button holds the mark and nothing else: an icon-only control whose only name is
+	// its accessible one. The old text label is gone, not hidden.
+	if !regexp.MustCompile(`<button[^>]*data-pin[^>]*>\$\{ICON\.basket\}</button>`).MatchString(row) {
+		t.Error("the pin button carries a visible text label instead of only the basket icon")
+	}
+	if strings.Contains(js, ">Elegir en ") {
+		t.Error("app.js still renders the old text label «Elegir en …»")
+	}
+
+	// One inline <svg> in currentColor: no file, no URL, no icon font, no raster.
+	icon := fnBody(t, js, "const ICON = {")
+	if !strings.Contains(icon, "basket: '<svg") {
+		t.Error("the basket mark is not an inline <svg>")
+	}
+	if !strings.Contains(icon, "currentColor") {
+		t.Error("the basket mark does not inherit the chain accent through currentColor")
+	}
+	for _, bad := range []string{"url(", "<img", "<use", "font-face"} {
+		if strings.Contains(icon, bad) {
+			t.Errorf("the icon references %q instead of drawing itself", bad)
+		}
+	}
+
+	// An 18 px mark inside a 40 x 40 hit area, centred.
+	at := strings.Index(css, ".btn-icon{")
+	if at < 0 {
+		t.Fatal("styles.css has no .btn-icon rule")
+	}
+	rule := css[at:]
+	rule = rule[:strings.Index(rule, "}")]
+	for _, want := range []string{"width:40px", "height:40px", "place-items:center"} {
+		if !strings.Contains(rule, want) {
+			t.Errorf("the icon button is missing %q", want)
+		}
+	}
+}

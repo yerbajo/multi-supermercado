@@ -100,6 +100,10 @@ main{max-width:1160px;margin-inline:auto;padding:var(--sp-2) var(--sp-7) 0}
 .btn-quiet:hover{background:var(--surface-2)}
 .btn-small{min-height:32px;padding:0 var(--sp-3);font-size:var(--text-sm);border-radius:var(--r-1)}
 .btn[disabled]{color:var(--ink-3);cursor:not-allowed}
+/* An icon-only control: the basket mark is 18 px, the hit area is 40 x 40 (S14). */
+.btn-icon{width:40px;height:40px;min-height:40px;padding:0;display:inline-grid;place-items:center;color:var(--accent);flex:none}
+.btn-icon:hover{color:var(--accent-hover)}
+.btn-icon svg{display:block}
 .linkbtn{
   display:inline-flex;align-items:center;gap:var(--sp-1);background:none;border:0;padding:2px;
   color:var(--accent);font-size:var(--text-sm);font-weight:600;cursor:pointer;
@@ -244,10 +248,20 @@ main{max-width:1160px;margin-inline:auto;padding:var(--sp-2) var(--sp-7) 0}
 .sk-line{width:58%}
 .sk-val{height:16px}
 
-.lines{margin-block-start:var(--sp-3);display:flex;flex-direction:column}
+.lines{margin-block-start:var(--sp-3);display:flex;flex-direction:column;gap:var(--sp-2)}
 .lines .empty{font-size:var(--text-sm);color:var(--ink-2);padding-block:var(--sp-2)}
-.line{border-block-end:1px solid var(--line);padding-block:var(--sp-3)}
-.line:last-child{border-block-end:0}
+/* ---- the basket, read per supermarket: one section per chain (S14) ---- */
+.basket-chain{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-2);padding:var(--sp-3)}
+.bc-head{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap}
+.bc-head .logo{height:22px}
+.bc-name{font-size:var(--text-xs);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-2)}
+.bc-sub{margin-inline-start:auto;font-size:var(--text-ui);font-weight:700;font-variant-numeric:tabular-nums}
+.bc-lines{margin-block-start:var(--sp-1);display:flex;flex-direction:column}
+.bc-none{margin-block-start:var(--sp-1);font-size:var(--text-xs);color:var(--ink-2)}
+.basket-chain .line{border-block-end:1px solid var(--line);padding-block:var(--sp-2)}
+.basket-chain .line:last-child{border-block-end:0}
+.basket-chain .line-name{font-size:var(--text-sm);font-weight:600}
+.basket-chain .line-note{font-variant-numeric:tabular-nums}
 .line-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:var(--sp-3)}
 .line-name{display:block;font-size:var(--text-ui);font-weight:600;overflow-wrap:anywhere}
 .line-note{display:block;font-size:var(--text-xs);color:var(--ink-2);margin-block-start:1px}
