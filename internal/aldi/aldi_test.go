@@ -17,7 +17,8 @@ import (
 
 func ptr(f float64) *float64 { return &f }
 
-// sameHit compares hits by value: Price is a pointer, so == would compare addresses.
+// sameHit compares hits by value: Price and Available are pointers, so == would compare
+// addresses.
 func sameHit(a, b contract.Hit) bool {
 	if (a.Price == nil) != (b.Price == nil) {
 		return false
@@ -25,7 +26,14 @@ func sameHit(a, b contract.Hit) bool {
 	if a.Price != nil && *a.Price != *b.Price {
 		return false
 	}
+	if (a.Available == nil) != (b.Available == nil) {
+		return false
+	}
+	if a.Available != nil && *a.Available != *b.Available {
+		return false
+	}
 	a.Price, b.Price = nil, nil
+	a.Available, b.Available = nil, nil
 	return a == b
 }
 
@@ -81,7 +89,7 @@ func TestSearchMapsCapturedHits(t *testing.T) {
 		PricePerUnit: 10.54,
 		Unit:         "kg",
 		Currency:     "EUR",
-		Available:    true,
+		Available:    contract.Bool(true),
 		Category:     "Desayuno > Barritas y tortitas",
 		URL:          "https://www.aldi.es/producto/tortitas-de-arroz-integral-con-chocolate-con-leche-907505.html",
 		Image:        "https://s7g10.scene7.com/is/image/aldinord/9075_05_foto_chocolate_leche",

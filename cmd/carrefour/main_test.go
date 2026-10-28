@@ -32,7 +32,7 @@ func sample() contract.Result {
 		Store: "carrefour", ID: "8410297110979",
 		Name:  "Leche entera Central Lechera Asturiana botella 2,2 l.",
 		Brand: "central lechera asturiana", Price: ptr(2.75), PricePerUnit: 1.25, Unit: "L",
-		Currency: "EUR", Available: true,
+		Currency: "EUR",
 	}}}
 }
 
@@ -49,10 +49,14 @@ func TestJSONModePrintsOnlyTheContract(t *testing.T) {
 		t.Fatalf("search got term=%q limit=%d", stub.term, stub.lim)
 	}
 
-	for _, key := range []string{`"store"`, `"query"`, `"count"`, `"hits"`, `"pricePerUnit"`, `"available"`} {
+	for _, key := range []string{`"store"`, `"query"`, `"count"`, `"hits"`, `"pricePerUnit"`} {
 		if !strings.Contains(out.String(), key) {
 			t.Errorf("stdout is missing %s:\n%s", key, out.String())
 		}
+	}
+	// Superfudis publishes no stock, so the envelope must not carry an availability.
+	if strings.Contains(out.String(), `"available"`) {
+		t.Errorf("stdout claims a stock state:\n%s", out.String())
 	}
 
 	var got contract.Result
@@ -116,7 +120,7 @@ func TestTableMode(t *testing.T) {
 
 func TestTableWithoutPerUnitPrice(t *testing.T) {
 	res := contract.Result{Store: "carrefour", Query: "arroz", Count: 1, Hits: []contract.Hit{{
-		Store: "carrefour", ID: "8411495116732", Name: "Arroz redondo 2x200 g", Price: ptr(2.69), Currency: "EUR", Available: true,
+		Store: "carrefour", ID: "8411495116732", Name: "Arroz redondo 2x200 g", Price: ptr(2.69), Currency: "EUR",
 	}}}
 	var out bytes.Buffer
 	if code := run([]string{"search", "arroz"}, &out, io.Discard, &stubSearcher{res: res}); code != 0 {
@@ -131,7 +135,7 @@ func TestTableWithoutPerUnitPrice(t *testing.T) {
 // S8: an unpublished price prints "-" in the PRICE column instead of 0,00 €.
 func TestTableMarksAnUnpublishedPrice(t *testing.T) {
 	res := contract.Result{Store: "carrefour", Query: "x", Count: 1, Hits: []contract.Hit{{
-		Store: "carrefour", ID: "1", Name: "A", Available: true,
+		Store: "carrefour", ID: "1", Name: "A",
 	}}}
 	var out bytes.Buffer
 	if code := run([]string{"search", "x"}, &out, io.Discard, &stubSearcher{res: res}); code != 0 {

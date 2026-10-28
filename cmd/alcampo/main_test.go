@@ -71,7 +71,7 @@ func TestSearchJSONEnvelope(t *testing.T) {
 	if got.Hits[0].ID != "54180" || got.Hits[0].Price == nil || *got.Hits[0].Price != 5.28 || got.Hits[0].Unit != "L" || got.Hits[0].PricePerUnit != 0.88 {
 		t.Fatalf("first hit = %+v", got.Hits[0])
 	}
-	if got.Hits[1].Available {
+	if got.Hits[1].Available == nil || *got.Hits[1].Available {
 		t.Fatalf("second hit should be unavailable: %+v", got.Hits[1])
 	}
 	if errOut.Len() != 0 {
@@ -96,7 +96,7 @@ func TestSearchTableIsDefault(t *testing.T) {
 // S8: an unpublished price prints "-" in the PRICE column instead of 0,00 €.
 func TestTableMarksAnUnpublishedPrice(t *testing.T) {
 	res := contract.Result{Store: "alcampo", Query: "x", Count: 1, Hits: []contract.Hit{{
-		Store: "alcampo", ID: "1", Name: "Plátano", Available: true,
+		Store: "alcampo", ID: "1", Name: "Plátano", Available: contract.Bool(true),
 	}}}
 	var out strings.Builder
 	if err := printTable(&out, res); err != nil {

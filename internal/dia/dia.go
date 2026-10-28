@@ -111,15 +111,20 @@ func (c *Client) Search(ctx context.Context, term string, limit int) (contract.R
 			ID:        it.ObjectID,
 			Name:      it.Name,
 			Brand:     it.Brand,
-			Available: it.Stock > 0,
+			Available: contract.Bool(it.Stock > 0),
 			Category:  it.Category,
 			URL:       absolute(base, it.URL),
 			Image:     absolute(base, it.Image),
 		}
 		if p := it.Prices; p != nil {
 			hit.Price = p.Price
-			hit.PricePerUnit = p.PricePerUnit
-			hit.Unit = unit(p.MeasureUnit)
+			// DIA publishes measure_unit values outside the contract vocabulary ("LAVADO",
+			// "100 ML."). Without a known unit there is no unit price: emitting one would be a
+			// comparison DIA never published, and converting "100 ML." would be an assumption.
+			if u := unit(p.MeasureUnit); u != "" {
+				hit.Unit = u
+				hit.PricePerUnit = p.PricePerUnit
+			}
 			if p.Price != nil {
 				hit.Currency = p.Currency
 			}

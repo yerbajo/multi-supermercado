@@ -176,7 +176,7 @@ func (h hit) contractHit() contract.Hit {
 		ID:        h.ObjectID,
 		Name:      h.Name,
 		Brand:     h.Brand,
-		Available: h.Available,
+		Available: contract.Bool(h.Available),
 	}
 	if len(h.Categories.Lvl1) > 0 {
 		out.Category = h.Categories.Lvl1[0]

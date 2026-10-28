@@ -28,7 +28,7 @@ func TestEncodeEmitsTheFieldNamesTheWebAppConsumes(t *testing.T) {
 		Count: 1,
 		Hits: []Hit{{
 			Store: "x", ID: "1", Name: "n", Price: ptr(1.5),
-			PricePerUnit: 2, Unit: "kg", Currency: "EUR", Available: true,
+			PricePerUnit: 2, Unit: "kg", Currency: "EUR", Available: Bool(true),
 		}},
 	})
 	if err != nil {
@@ -72,7 +72,7 @@ func TestEncodeOmitsUnknownOptionalFields(t *testing.T) {
 func TestEncodeOmitsAnUnpublishedPrice(t *testing.T) {
 	var buf bytes.Buffer
 	err := Encode(&buf, Result{Store: "x", Query: "q", Count: 1, Hits: []Hit{{
-		Store: "x", ID: "1", Name: "n", Available: true,
+		Store: "x", ID: "1", Name: "n", Available: Bool(true),
 	}}})
 	if err != nil {
 		t.Fatalf("Encode: %v", err)
@@ -83,12 +83,29 @@ func TestEncodeOmitsAnUnpublishedPrice(t *testing.T) {
 	}
 }
 
+// S8: a chain that publishes no stock state leaves the key out. An absent `available`
+// means "unknown"; it must never be serialised as a false the web app would read as
+// "out of stock".
+func TestEncodeOmitsAnUnknownAvailability(t *testing.T) {
+	var buf bytes.Buffer
+	err := Encode(&buf, Result{Store: "x", Query: "q", Count: 1, Hits: []Hit{{
+		Store: "x", ID: "1", Name: "n", Price: ptr(2.75), Currency: "EUR",
+	}}})
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	want := `{"store":"x","query":"q","count":1,"hits":[{"store":"x","id":"1","name":"n","price":2.75,"currency":"EUR"}]}`
+	if got := compact(t, buf.String()); got != want {
+		t.Fatalf("json mismatch\n got: %s\nwant: %s", got, want)
+	}
+}
+
 // A published price stays a plain number: no wrapper object and no second presence
 // field, so the web app keeps reading `hit.price`.
 func TestEncodeWritesAPublishedPriceAsANumber(t *testing.T) {
 	var buf bytes.Buffer
 	err := Encode(&buf, Result{Store: "x", Query: "q", Count: 1, Hits: []Hit{{
-		Store: "x", ID: "1", Name: "n", Price: ptr(2.75), Currency: "EUR",
+		Store: "x", ID: "1", Name: "n", Price: ptr(2.75), Currency: "EUR", Available: Bool(false),
 	}}})
 	if err != nil {
 		t.Fatalf("Encode: %v", err)

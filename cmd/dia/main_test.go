@@ -31,7 +31,7 @@ func sample() contract.Result {
 	return contract.Result{Store: "dia", Query: "leche", Count: 1, Hits: []contract.Hit{{
 		Store: "dia", ID: "74720P6", Name: "Leche entera Asturiana pack 6 x 1.5 L",
 		Brand: "Asturiana", Price: ptr(11.82), PricePerUnit: 1.31, Unit: "L",
-		Currency: "EUR", Available: true, Category: "Leche",
+		Currency: "EUR", Available: contract.Bool(true), Category: "Leche",
 		URL: "https://www.dia.es/p/74720P6", Image: "https://www.dia.es/i.jpg",
 	}}}
 }
@@ -88,24 +88,27 @@ func TestTableMode(t *testing.T) {
 	}
 }
 
+// S8: a chain that publishes no stock state leaves `available` out of the JSON, and the
+// table renders that unknown as "-": never as "no", which would read as sold out.
 func TestTableWithoutPerUnitOrStock(t *testing.T) {
-	res := contract.Result{Store: "dia", Query: "x", Count: 1, Hits: []contract.Hit{{
-		Store: "dia", ID: "X1", Name: "Bolsa", Price: ptr(0.05), Currency: "EUR",
-	}}}
+	var res contract.Result
+	if err := json.Unmarshal([]byte(`{"store":"dia","query":"x","count":1,"hits":[{"store":"dia","id":"X1","name":"Bolsa","price":0.05,"currency":"EUR"}]}`), &res); err != nil {
+		t.Fatal(err)
+	}
 	var out bytes.Buffer
 	if code := run([]string{"search", "x"}, &out, io.Discard, &stubSearcher{res: res}); code != 0 {
 		t.Fatalf("exit = %d", code)
 	}
 	row := strings.Split(strings.TrimSpace(out.String()), "\n")[1]
-	if !strings.Contains(row, "-") || !strings.Contains(row, "no") {
-		t.Fatalf("row = %q", row)
+	if !regexp.MustCompile(`^X1\s+Bolsa\s+0\.05\s+-\s+-$`).MatchString(row) {
+		t.Fatalf("row = %q, want - for unit price and unknown stock", row)
 	}
 }
 
 // S8: an unpublished price prints "-" instead of reading as 0,00 €.
 func TestTableMarksAnUnpublishedPrice(t *testing.T) {
 	res := contract.Result{Store: "dia", Query: "x", Count: 1, Hits: []contract.Hit{{
-		Store: "dia", ID: "X1", Name: "Bolsa", Available: true,
+		Store: "dia", ID: "X1", Name: "Bolsa", Available: contract.Bool(true),
 	}}}
 	var out bytes.Buffer
 	if code := run([]string{"search", "x"}, &out, io.Discard, &stubSearcher{res: res}); code != 0 {

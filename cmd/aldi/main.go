@@ -143,8 +143,12 @@ func perUnit(h contract.Hit) string {
 	return fmt.Sprintf("%.2f €/%s", h.PricePerUnit, h.Unit)
 }
 
-func stock(available bool) string {
-	if available {
+// stock prints "-" when the chain publishes no stock state: unknown is not "no" (S8).
+func stock(available *bool) string {
+	if available == nil {
+		return "-"
+	}
+	if *available {
 		return "yes"
 	}
 	return "no"

@@ -71,7 +71,6 @@ func NewClient() *Client {
 // terms forbid bulk extraction, so there is no paging and no batching here.
 func (c *Client) Search(ctx context.Context, term string, limit int) (contract.Result, error) {
 	res := contract.Result{Store: store, Query: term, Hits: []contract.Hit{}}
-	limit = clampLimit(limit)
 
 	raw, err := c.post(ctx, term)
 	if err != nil {
@@ -98,17 +97,6 @@ func (c *Client) Search(ctx context.Context, term string, limit int) (contract.R
 	}
 	res.Count = len(res.Hits)
 	return res, nil
-}
-
-func clampLimit(limit int) int {
-	switch {
-	case limit <= 0:
-		return DefaultLimit
-	case limit > MaxLimit:
-		return MaxLimit
-	default:
-		return limit
-	}
 }
 
 // basketRequest is the exact body Superfudis expects: one item, one retailer.

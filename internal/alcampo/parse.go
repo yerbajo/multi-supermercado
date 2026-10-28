@@ -38,7 +38,7 @@ func (p product) hit() contract.Hit {
 		ID:        p.RetailerProductID,
 		Name:      p.Name,
 		Brand:     p.Brand,
-		Available: p.Available,
+		Available: contract.Bool(p.Available),
 	}
 	// A published amount is the only price source; a missing or unparsable one leaves
 	// the price absent instead of 0,00 € (S8).

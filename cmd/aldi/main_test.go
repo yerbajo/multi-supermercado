@@ -34,7 +34,7 @@ func sample() contract.Result {
 		Hits: []contract.Hit{{
 			Store: "aldi", ID: "80000", Name: "Leche entera", Brand: "MILSANI®",
 			Price: ptr(0.96), PricePerUnit: 0.96, Unit: "L", Currency: "EUR",
-			Available: true, Category: "Lácteos y huevos > Leche y bebidas vegetales",
+			Available: contract.Bool(true), Category: "Lácteos y huevos > Leche y bebidas vegetales",
 			URL:   "https://www.aldi.es/producto/leche-entera-80000.html",
 			Image: "https://s7g10.scene7.com/is/image/aldinord/800_pack",
 		}},
@@ -96,10 +96,26 @@ func TestSearchTableIsTheDefault(t *testing.T) {
 	}
 }
 
+// S8: a chain that publishes no stock state leaves `available` out of the JSON, and the
+// table renders that unknown as "-": never as "no", which would read as sold out.
+func TestTableMarksUnknownAvailability(t *testing.T) {
+	var res contract.Result
+	if err := json.Unmarshal([]byte(`{"store":"aldi","query":"x","count":1,"hits":[{"store":"aldi","id":"1","name":"A","price":0.96,"currency":"EUR"}]}`), &res); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"search", "x"}, &stdout, &stderr, &fake{res: res}); code != 0 {
+		t.Fatalf("exit = %d, stderr = %s", code, stderr.String())
+	}
+	if !regexp.MustCompile(`(?m)^1\s+A\s+0\.96 €\s+-\s+-$`).MatchString(stdout.String()) {
+		t.Errorf("unknown stock must print - and not claim a state:\n%s", stdout.String())
+	}
+}
+
 // A hit the catalogue publishes without a price must not print 0.00 €.
 func TestTableMarksAnUnpublishedPrice(t *testing.T) {
 	res := contract.Result{Store: "aldi", Query: "cogollos", Count: 1,
-		Hits: []contract.Hit{{Store: "aldi", ID: "998600", Name: "Cogollos", Currency: "EUR", Available: true}}}
+		Hits: []contract.Hit{{Store: "aldi", ID: "998600", Name: "Cogollos", Currency: "EUR", Available: contract.Bool(true)}}}
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"search", "cogollos"}, &stdout, &stderr, &fake{res: res}); code != 0 {
 		t.Fatalf("exit = %d, stderr = %s", code, stderr.String())

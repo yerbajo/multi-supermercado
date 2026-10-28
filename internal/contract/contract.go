@@ -20,11 +20,16 @@ type Hit struct {
 	PricePerUnit float64  `json:"pricePerUnit,omitempty"`
 	Unit         string   `json:"unit,omitempty"` // kg | L | unit
 	Currency     string   `json:"currency,omitempty"`
-	Available    bool     `json:"available"`
-	Category     string   `json:"category,omitempty"`
-	URL          string   `json:"url,omitempty"`
-	Image        string   `json:"image,omitempty"`
+	// Available is tri-state: true or false when the chain publishes a stock state, nil
+	// (key absent) when it publishes none. Unknown is not "out of stock" (S8).
+	Available *bool  `json:"available,omitempty"`
+	Category  string `json:"category,omitempty"`
+	URL       string `json:"url,omitempty"`
+	Image     string `json:"image,omitempty"`
 }
+
+// Bool returns a pointer to v: a chain that does know its stock state publishes it here.
+func Bool(v bool) *bool { return &v }
 
 // Result is the envelope printed by `search`, both as JSON and as a table.
 type Result struct {

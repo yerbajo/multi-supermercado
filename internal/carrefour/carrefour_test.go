@@ -84,13 +84,13 @@ func TestSearchMapsCapturedResponse(t *testing.T) {
 	}
 
 	want := contract.Hit{
-		Store:     "carrefour",
-		ID:        "8410297110979",
-		Name:      "Leche entera Central Lechera Asturiana botella 2,2 l.",
-		Brand:     "central lechera asturiana",
-		Price:     ptr(2.75),
-		Currency:  "EUR",
-		Available: true,
+		Store:    "carrefour",
+		ID:       "8410297110979",
+		Name:     "Leche entera Central Lechera Asturiana botella 2,2 l.",
+		Brand:    "central lechera asturiana",
+		Price:    ptr(2.75),
+		Currency: "EUR",
+		// No Available: Superfudis publishes no stock field (S8).
 		// 2,75 € for 2200 ml is 1,25 €/L, derived from the published sizes only.
 		PricePerUnit: 1.25,
 		Unit:         "L",
@@ -103,7 +103,8 @@ func TestSearchMapsCapturedResponse(t *testing.T) {
 	}
 }
 
-// sameHit compares hits by value: Price is a pointer, so == would compare addresses.
+// sameHit compares hits by value: Price and Available are pointers, so == would compare
+// addresses.
 func sameHit(a, b contract.Hit) bool {
 	if (a.Price == nil) != (b.Price == nil) {
 		return false
@@ -111,7 +112,14 @@ func sameHit(a, b contract.Hit) bool {
 	if a.Price != nil && *a.Price != *b.Price {
 		return false
 	}
+	if (a.Available == nil) != (b.Available == nil) {
+		return false
+	}
+	if a.Available != nil && *a.Available != *b.Available {
+		return false
+	}
 	a.Price, b.Price = nil, nil
+	a.Available, b.Available = nil, nil
 	return a == b
 }
 
@@ -132,6 +140,23 @@ func TestSearchOmitsAnUnpublishedPrice(t *testing.T) {
 		if strings.Contains(buf.String(), key) {
 			t.Errorf("unpriced hit must omit %s:\n%s", key, buf.String())
 		}
+	}
+}
+
+// Superfudis publishes no stock field, so the hit must not assert availability: the
+// `available` key stays absent, which the shared contract reads as "unknown" (S8).
+func TestSearchDoesNotAssertStock(t *testing.T) {
+	c, _ := newServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write(fixture(t)) })
+	res, err := c.Search(context.Background(), "leche entera", 20)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	var buf strings.Builder
+	if err := contract.Encode(&buf, res); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	if strings.Contains(buf.String(), `"available"`) {
+		t.Errorf("Superfudis publishes no stock, so the hit must not claim one:\n%s", buf.String())
 	}
 }
 

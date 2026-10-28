@@ -39,11 +39,12 @@ type offer struct {
 // hit maps one offer onto the shared envelope.
 func (o offer) hit(id string) contract.Hit {
 	h := contract.Hit{
-		Store:     store,
-		ID:        id,
-		Name:      o.Name,
-		Brand:     o.Brand,
-		Available: true,
+		Store: store,
+		ID:    id,
+		Name:  o.Name,
+		Brand: o.Brand,
+		// Superfudis publishes no stock field, so availability stays unknown: the key is
+		// absent instead of an invented "in stock" (S8).
 		// source_url is the carrefour.es catalogue page Superfudis matched, so the
 		// aggregator can link the offer. It is Superfudis-reported, not fetched by us:
 		// carrefour.es answers Cloudflare 403 (S9).

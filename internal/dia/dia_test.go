@@ -16,7 +16,8 @@ import (
 
 func ptr(f float64) *float64 { return &f }
 
-// sameHit compares hits by value: Price is a pointer, so == would compare addresses.
+// sameHit compares hits by value: Price and Available are pointers, so == would compare
+// addresses.
 func sameHit(a, b contract.Hit) bool {
 	if (a.Price == nil) != (b.Price == nil) {
 		return false
@@ -24,7 +25,14 @@ func sameHit(a, b contract.Hit) bool {
 	if a.Price != nil && *a.Price != *b.Price {
 		return false
 	}
+	if (a.Available == nil) != (b.Available == nil) {
+		return false
+	}
+	if a.Available != nil && *a.Available != *b.Available {
+		return false
+	}
 	a.Price, b.Price = nil, nil
+	a.Available, b.Available = nil, nil
 	return a == b
 }
 
@@ -104,7 +112,7 @@ func TestSearchMapsTrimmedReducedResponse(t *testing.T) {
 		PricePerUnit: 0.83,
 		Unit:         "L",
 		Currency:     "EUR",
-		Available:    true,
+		Available:    contract.Bool(true),
 		Category:     "Leche",
 		URL:          srv.URL + "/huevos-leche-y-mantequilla/leche/p/504P6",
 		Image:        srv.URL + "/product_images/504P6/504P6_ISO_0_ES.jpg",
@@ -157,7 +165,7 @@ func TestHitMapping(t *testing.T) {
 			item: strings.Replace(strings.Replace(baseItem, "LITRO", "KILO", 1), "11.82", "2.45", 1),
 			want: contract.Hit{Store: "dia", ID: "74720P6", Name: "Leche entera Asturiana pack 6 x 1.5 L",
 				Brand: "Asturiana", Price: ptr(2.45), PricePerUnit: 1.31, Unit: "kg", Currency: "EUR",
-				Available: true, Category: "Leche",
+				Available: contract.Bool(true), Category: "Leche",
 				URL:   "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/74720P6",
 				Image: "https://www.dia.es/product_images/74720P6/74720P6_ISO_0_ES.jpg"},
 		},
@@ -166,16 +174,16 @@ func TestHitMapping(t *testing.T) {
 			item: strings.Replace(baseItem, `"LITRO"`, `"UNIDAD"`, 1),
 			want: contract.Hit{Store: "dia", ID: "74720P6", Name: "Leche entera Asturiana pack 6 x 1.5 L",
 				Brand: "Asturiana", Price: ptr(11.82), PricePerUnit: 1.31, Unit: "unit", Currency: "EUR",
-				Available: true, Category: "Leche",
+				Available: contract.Bool(true), Category: "Leche",
 				URL:   "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/74720P6",
 				Image: "https://www.dia.es/product_images/74720P6/74720P6_ISO_0_ES.jpg"},
 		},
 		{
-			name: "unknown measure unit stays empty",
+			name: "unknown measure unit leaves the unit price empty",
 			item: strings.Replace(baseItem, `"LITRO"`, `"GRAMO"`, 1),
 			want: contract.Hit{Store: "dia", ID: "74720P6", Name: "Leche entera Asturiana pack 6 x 1.5 L",
-				Brand: "Asturiana", Price: ptr(11.82), PricePerUnit: 1.31, Unit: "", Currency: "EUR",
-				Available: true, Category: "Leche",
+				Brand: "Asturiana", Price: ptr(11.82), PricePerUnit: 0, Unit: "", Currency: "EUR",
+				Available: contract.Bool(true), Category: "Leche",
 				URL:   "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/74720P6",
 				Image: "https://www.dia.es/product_images/74720P6/74720P6_ISO_0_ES.jpg"},
 		},
@@ -184,7 +192,7 @@ func TestHitMapping(t *testing.T) {
 			item: strings.Replace(baseItem, `"units_in_stock": 41`, `"units_in_stock": 0`, 1),
 			want: contract.Hit{Store: "dia", ID: "74720P6", Name: "Leche entera Asturiana pack 6 x 1.5 L",
 				Brand: "Asturiana", Price: ptr(11.82), PricePerUnit: 1.31, Unit: "L", Currency: "EUR",
-				Available: false, Category: "Leche",
+				Available: contract.Bool(false), Category: "Leche",
 				URL:   "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/74720P6",
 				Image: "https://www.dia.es/product_images/74720P6/74720P6_ISO_0_ES.jpg"},
 		},
@@ -193,7 +201,7 @@ func TestHitMapping(t *testing.T) {
 			item: `{"brand":"Dia","display_name":"Bolsa reutilizable","object_id":"X1",
 			       "l2_category_description":"Bazar","units_in_stock":5,"url":"/bazar/p/X1","image":"/img/X1.jpg"}`,
 			want: contract.Hit{Store: "dia", ID: "X1", Name: "Bolsa reutilizable", Brand: "Dia",
-				PricePerUnit: 0, Unit: "", Currency: "", Available: true,
+				PricePerUnit: 0, Unit: "", Currency: "", Available: contract.Bool(true),
 				Category: "Bazar", URL: "https://www.dia.es/bazar/p/X1",
 				Image: "https://www.dia.es/img/X1.jpg"},
 		},
@@ -203,7 +211,7 @@ func TestHitMapping(t *testing.T) {
 			item: strings.Replace(baseItem, `"price": 11.82,`, "", 1),
 			want: contract.Hit{Store: "dia", ID: "74720P6", Name: "Leche entera Asturiana pack 6 x 1.5 L",
 				Brand: "Asturiana", PricePerUnit: 1.31, Unit: "L",
-				Available: true, Category: "Leche",
+				Available: contract.Bool(true), Category: "Leche",
 				URL:   "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/74720P6",
 				Image: "https://www.dia.es/product_images/74720P6/74720P6_ISO_0_ES.jpg"},
 		},
@@ -229,6 +237,38 @@ func TestHitMapping(t *testing.T) {
 				t.Fatalf("hit =\n%+v\nwant\n%+v", got, want)
 			}
 		})
+	}
+}
+
+// Real hits carry measure_unit values outside the contract vocabulary: "LAVADO" on 25
+// of the 30 "detergente" hits, and "100 ML." on others. An unknown unit means no unit
+// price at all — both fields stay out of the JSON — because DIA published no €/kg or
+// €/L anyone could compare (S8). Converting "100 ML." would be a x10 assumption.
+func TestSearchDropsTheUnitPriceForAUnitItCannotMap(t *testing.T) {
+	for _, measureUnit := range []string{"LAVADO", "100 ML."} {
+		item := strings.Replace(baseItem, `"LITRO"`, `"`+measureUnit+`"`, 1)
+		c, _ := newServer(t, func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(envelope(item)))
+		})
+		res, err := c.Search(context.Background(), "detergente", 20)
+		if err != nil {
+			t.Fatalf("Search: %v", err)
+		}
+		if h := res.Hits[0]; h.Price == nil || *h.Price != 11.82 {
+			t.Fatalf("measure_unit %q: published price lost: %+v", measureUnit, h)
+		}
+		if h := res.Hits[0]; h.PricePerUnit != 0 || h.Unit != "" {
+			t.Fatalf("measure_unit %q: unit price %v %q emitted without a unit", measureUnit, h.PricePerUnit, h.Unit)
+		}
+		var buf strings.Builder
+		if err := contract.Encode(&buf, res); err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range []string{`"pricePerUnit"`, `"unit"`} {
+			if strings.Contains(buf.String(), key) {
+				t.Errorf("measure_unit %q: JSON carries %s without a unit:\n%s", measureUnit, key, buf.String())
+			}
+		}
 	}
 }
 

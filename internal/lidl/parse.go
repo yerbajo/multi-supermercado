@@ -65,7 +65,7 @@ func (i item) hit() (contract.Hit, bool) {
 		ID:        i.Code,
 		Name:      p.FullTitle,
 		Brand:     p.Brand.Name,
-		Available: p.available(),
+		Available: contract.Bool(p.available()),
 		Category:  p.Category,
 		URL:       baseURL + p.CanonicalURL,
 		Image:     p.Image,

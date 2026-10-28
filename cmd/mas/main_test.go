@@ -108,8 +108,8 @@ func TestMultiWordTermAndFlags(t *testing.T) {
 // S8: a hit without a published price prints "-" in the PRICE column, never 0.00.
 func TestTableMarksAnUnpublishedPrice(t *testing.T) {
 	res := contract.Result{Store: "mas", Query: "leche", Count: 2, Hits: []contract.Hit{
-		{Store: "mas", ID: "062595", Name: "Leche entera", Price: ptr(1.84), Currency: "EUR", Available: true},
-		{Store: "mas", ID: "077777", Name: "Cogollos", Available: true},
+		{Store: "mas", ID: "062595", Name: "Leche entera", Price: ptr(1.84), Currency: "EUR", Available: contract.Bool(true)},
+		{Store: "mas", ID: "077777", Name: "Cogollos", Available: contract.Bool(true)},
 	}}
 	var out strings.Builder
 	if err := printTable(&out, res); err != nil {

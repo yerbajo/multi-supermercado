@@ -31,7 +31,7 @@ func sample() contract.Result {
 	return contract.Result{Store: "lidl", Query: "leche", Count: 1, Hits: []contract.Hit{{
 		Store: "lidl", ID: "11001765", Name: "FIN CARRÉ Chocolate",
 		Brand: "FIN CARRÉ", Price: ptr(0.85), PricePerUnit: 8.5, Unit: "kg",
-		Currency: "EUR", Available: true, Category: "Food",
+		Currency: "EUR", Available: contract.Bool(true), Category: "Food",
 		URL: "https://www.lidl.es/p/fin-carre-chocolate/p11001765", Image: "https://www.lidl.es/i.png",
 	}}}
 }
@@ -77,7 +77,7 @@ func TestJSONModePrintsOnlyTheContract(t *testing.T) {
 // stderr, never inside the JSON document.
 func TestUnpricedHitsAreDeclaredOnStderrOnly(t *testing.T) {
 	res := sample()
-	res.Hits = append(res.Hits, contract.Hit{Store: "lidl", ID: "11137495", Name: "REALVALLE Lacón al horno", Available: true})
+	res.Hits = append(res.Hits, contract.Hit{Store: "lidl", ID: "11137495", Name: "REALVALLE Lacón al horno", Available: contract.Bool(true)})
 	res.Count = 2
 	var out, errOut bytes.Buffer
 
@@ -151,7 +151,7 @@ func TestTableWithoutPerUnitPrice(t *testing.T) {
 // S8: an unpublished price prints "-" in the PRICE column instead of 0,00 €.
 func TestTableMarksAnUnpublishedPrice(t *testing.T) {
 	res := contract.Result{Store: "lidl", Query: "x", Count: 1, Hits: []contract.Hit{{
-		Store: "lidl", ID: "11137495", Name: "Lacón", Available: true,
+		Store: "lidl", ID: "11137495", Name: "Lacón", Available: contract.Bool(true),
 	}}}
 	var out bytes.Buffer
 	if code := run([]string{"search", "x"}, &out, io.Discard, &stubSearcher{res: res}); code != 0 {

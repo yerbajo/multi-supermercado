@@ -12,50 +12,18 @@ import (
 )
 
 // Real names observed from the live MAS catalog, plus the no-size cases.
-func TestParseQuantity(t *testing.T) {
-	tests := []struct {
-		name   string
-		amount float64
-		unit   string
-	}{
-		{"Leche semidesnatada PASCUAL botella 1,5l", 1.5, "L"},
-		{"Leche condensada LA LECHERA 370 gr", 0.37, "kg"},
-		{"Leche condensada entera LA LECHERA lata 740gr", 0.74, "kg"},
-		{"Coca-cola sabor original 6x200ml lata", 1.2, "L"},
-		{"Coca-cola light 2x2l pet", 4, "L"},
-		{"Refresco cola COCA COLA lata 50cl", 0.5, "L"},
-		{"Agua mineral BEZOYA botella 1,5 L", 1.5, "L"},
-		{"Aceite de oliva virgen extra 1l", 1, "L"},
-		{"Huevos camperos SAN RAFAEL 12ud", 12, "unit"},
-		{"Pan de molde BIMBO 460g", 0.46, "kg"},
-		// no parsable size: leave the unit price empty instead of guessing
-		{"Leche entera PASCUAL", 0, ""},
-		{"Pan de molde BIMBO sin corteza", 0, ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			amount, unit := parseQuantity(tt.name)
-			if unit != tt.unit {
-				t.Fatalf("unit = %q, want %q", unit, tt.unit)
-			}
-			if diff := amount - tt.amount; diff > 1e-9 || diff < -1e-9 {
-				t.Fatalf("amount = %v, want %v", amount, tt.amount)
-			}
-		})
-	}
-}
-
 const searchFixture = `{"data":{"products":{"total_count":245,"items":[
 {"name":"Leche semidesnatada PASCUAL botella 1,5l","sku":"062595","url_key":"lacteos/leche-semidesnatada-pascual-botella-1-5l","stock_status":"IN_STOCK","price":{"regularPrice":{"amount":{"value":1.84,"currency":"EUR"}}}},
 {"name":"Pipas TOSFERINA","sku":"077777","url_key":"snacks/pipas-tosferina","stock_status":"OUT_OF_STOCK","price":{"regularPrice":{"amount":{"value":2.5,"currency":"EUR"}}}}
 ]}}}`
 
-// The hit shape is asserted as JSON, never as Go struct internals.
+// The hit shape is asserted as JSON, never as Go struct internals. MAS publishes no
+// sold size, so no hit carries a unit price, whatever its name looks like.
 func TestSearchMapsProductsToHits(t *testing.T) {
 	got := searchJSON(t, searchFixture, http.StatusOK)
 
 	want := `{"store":"mas","query":"leche","count":2,"hits":[
-{"store":"mas","id":"062595","name":"Leche semidesnatada PASCUAL botella 1,5l","price":1.84,"pricePerUnit":1.23,"unit":"L","currency":"EUR","available":true,"url":"https://www.supermercadosmas.com/lacteos/leche-semidesnatada-pascual-botella-1-5l/"},
+{"store":"mas","id":"062595","name":"Leche semidesnatada PASCUAL botella 1,5l","price":1.84,"currency":"EUR","available":true,"url":"https://www.supermercadosmas.com/lacteos/leche-semidesnatada-pascual-botella-1-5l/"},
 {"store":"mas","id":"077777","name":"Pipas TOSFERINA","price":2.5,"currency":"EUR","available":false,"url":"https://www.supermercadosmas.com/snacks/pipas-tosferina/"}
 ]}`
 	if got, want := compact(t, got), compact(t, want); got != want {
@@ -63,11 +31,35 @@ func TestSearchMapsProductsToHits(t *testing.T) {
 	}
 }
 
-func TestSearchWithoutSizeOmitsUnitPrice(t *testing.T) {
-	body := `{"data":{"products":{"items":[{"name":"Pan de molde BIMBO","sku":"1","url_key":"pan/bimbo","stock_status":"IN_STOCK","price":{"regularPrice":{"amount":{"value":2.1,"currency":"EUR"}}}}]}}}`
-	want := `{"store":"mas","query":"leche","count":1,"hits":[{"store":"mas","id":"1","name":"Pan de molde BIMBO","price":2.1,"currency":"EUR","available":true,"url":"https://www.supermercadosmas.com/pan/bimbo/"}]}`
-	if got := compact(t, searchJSON(t, body, http.StatusOK)); got != compact(t, want) {
-		t.Fatalf("json mismatch\n got: %s\nwant: %s", got, compact(t, want))
+// MAS publishes no sold size, so a size-shaped product name must never become a unit
+// price: the name parser this replaces reported 0.09 €/L for a 30-litre bin bag
+// ("HANDY BAG 30l 12ud") and 13.50 €/L for "IFA SABE 10ux100ml", neither of which
+// anyone publishes (S8). Both fields stay empty, exactly as dia does when it cannot
+// know the unit.
+func TestSearchNeverDerivesAUnitPriceFromTheName(t *testing.T) {
+	body := `{"data":{"products":{"items":[
+{"name":"HANDY BAG 30l 12ud bolsas basura","sku":"1","url_key":"hogar/handy-bag","stock_status":"IN_STOCK","price":{"regularPrice":{"amount":{"value":2.75,"currency":"EUR"}}}},
+{"name":"IFA SABE 10ux100ml","sku":"2","url_key":"drogueria/ifa-sabe","stock_status":"IN_STOCK","price":{"regularPrice":{"amount":{"value":13.5,"currency":"EUR"}}}}
+]}}}`
+	got := searchJSON(t, body, http.StatusOK)
+	var res struct {
+		Hits []map[string]json.RawMessage `json:"hits"`
+	}
+	if err := json.Unmarshal([]byte(got), &res); err != nil {
+		t.Fatalf("output is not JSON: %v\n%s", err, got)
+	}
+	if len(res.Hits) != 2 {
+		t.Fatalf("hits = %d, want 2:\n%s", len(res.Hits), got)
+	}
+	for i, h := range res.Hits {
+		for _, key := range []string{"pricePerUnit", "unit"} {
+			if _, ok := h[key]; ok {
+				t.Errorf("hit %d (%s) carries %q: MAS publishes no sold size\n%s", i, h["name"], key, got)
+			}
+		}
+		if _, ok := h["price"]; !ok {
+			t.Errorf("hit %d lost its published price:\n%s", i, got)
+		}
 	}
 }
 

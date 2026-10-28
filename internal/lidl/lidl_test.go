@@ -14,7 +14,8 @@ import (
 
 func ptr(f float64) *float64 { return &f }
 
-// sameHit compares hits by value: Price is a pointer, so == would compare addresses.
+// sameHit compares hits by value: Price and Available are pointers, so == would compare
+// addresses.
 func sameHit(a, b contract.Hit) bool {
 	if (a.Price == nil) != (b.Price == nil) {
 		return false
@@ -22,7 +23,14 @@ func sameHit(a, b contract.Hit) bool {
 	if a.Price != nil && *a.Price != *b.Price {
 		return false
 	}
+	if (a.Available == nil) != (b.Available == nil) {
+		return false
+	}
+	if a.Available != nil && *a.Available != *b.Available {
+		return false
+	}
 	a.Price, b.Price = nil, nil
+	a.Available, b.Available = nil, nil
 	return a == b
 }
 
@@ -105,7 +113,7 @@ func TestSearchMapsCapturedResponse(t *testing.T) {
 		PricePerUnit: 8.5,
 		Unit:         "kg",
 		Currency:     "EUR",
-		Available:    true,
+		Available:    contract.Bool(true),
 		Category:     "Food",
 		URL:          "https://www.lidl.es/p/fin-carre-chocolate/p11001765",
 		Image:        "https://www.lidl.es/assets/gcp98c0ffc034244b6ebf3b9c083019d401.png",
