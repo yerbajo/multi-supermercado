@@ -43,7 +43,20 @@ multisuper basket -f cesta.json --json
 ```
 
 ```json
-{"items":[{"query":"huevos","quantity":1}],"items_resolved":null}
+{
+  "items": [
+    {"query":"leche entera","quantity":1,
+     "resolved":{"dia":{"id":"312953","name":"Leche entera Gremlins Dia Láctea 3 x 200 ml","unitCents":92,"lineCents":92}},
+     "missing":["lidl"]}
+  ],
+  "chains": [
+    {"store":"dia","totalCents":417,"coverage":"3/3","elapsedMs":1177,"missing":[]},
+    {"store":"lidl","totalCents":1308,"coverage":"2/3","elapsedMs":471,"missing":["leche entera"]},
+    {"store":"carrefour","totalCents":0,"elapsedMs":20010,"missing":[],
+     "error":{"code":"timeout","retryable":true,"message":"..."}}
+  ],
+  "ranking": [{"store":"dia","totalCents":417}]
+}
 ```
 
 Entrada: `{"items":[{"query":"leche entera","quantity":2}]}`, o `-f -` por stdin.
