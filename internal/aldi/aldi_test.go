@@ -176,19 +176,43 @@ func TestSearchRejectsAnUnknownRegion(t *testing.T) {
 	}
 }
 
-func TestLimitIsClamped(t *testing.T) {
-	for in, want := range map[int]int{-1: DefaultLimit, 0: DefaultLimit, 500: MaxLimit, 7: 7} {
-		f := serve(t, "search_leche_pen.json")
-		if _, err := clientFor(f).Search(context.Background(), "pen", "leche", in); err != nil {
-			t.Fatalf("Search(%d): %v", in, err)
+// S3: a limit outside 1..MaxLimit is a usage error, never silently clamped, so the
+// client must reject it before building any request.
+func TestSearchRejectsAnOutOfRangeLimit(t *testing.T) {
+	for _, limit := range []int{0, -1, 101, 1000} {
+		calls := 0
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls++
+			io.WriteString(w, `{"hits":[]}`)
+		}))
+		c := &Client{BaseURL: srv.URL, HTTP: srv.Client(), Sleep: func(context.Context, time.Duration) error { return nil }}
+		_, err := c.Search(context.Background(), "pen", "leche", limit)
+		srv.Close()
+		if err == nil {
+			t.Errorf("limit %d: err = nil, want a rejection", limit)
 		}
-		var got query
-		if err := json.Unmarshal([]byte(f.lastBody(t)), &got); err != nil {
-			t.Fatalf("body: %v", err)
+		if calls != 0 {
+			t.Errorf("limit %d: %d requests reached the server, want 0", limit, calls)
 		}
-		if got.HitsPerPage != want {
-			t.Errorf("limit %d sent %d, want %d", in, got.HitsPerPage, want)
-		}
+	}
+}
+
+// A valid limit still goes out as the page size and still truncates a longer page.
+func TestSearchAppliesAValidLimit(t *testing.T) {
+	f := serve(t, "search_leche_pen.json")
+	res, err := clientFor(f).Search(context.Background(), "pen", "leche", 7)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	var got query
+	if err := json.Unmarshal([]byte(f.lastBody(t)), &got); err != nil {
+		t.Fatalf("body: %v", err)
+	}
+	if got.HitsPerPage != 7 {
+		t.Errorf("sent %d hits per page, want 7", got.HitsPerPage)
+	}
+	if res.Count != 7 || len(res.Hits) != 7 {
+		t.Errorf("count=%d hits=%d, want 7 (the fixture serves 10)", res.Count, len(res.Hits))
 	}
 }
 

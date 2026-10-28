@@ -70,6 +70,15 @@ func run(args []string, stdout, stderr io.Writer, s searcher) error {
 }
 
 func runSearch(args []string, stdout, stderr io.Writer, s searcher) error {
+	// S3: asking for help is not an error, in any position. Left to the flag package
+	// it returns flag.ErrHelp through run, which would exit 1.
+	for _, arg := range args {
+		switch arg {
+		case "-h", "--h", "-help", "--help":
+			fmt.Fprintln(stdout, usage)
+			return nil
+		}
+	}
 	fs := flag.NewFlagSet("mas search", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprintln(stderr, usage) }

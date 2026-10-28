@@ -63,6 +63,31 @@ func TestRunRejectsBadInput(t *testing.T) {
 	}
 }
 
+// S3: asking for help is not an error whatever the position of the flag.
+func TestHelpExitsZeroAndPrintsUsageOnStdout(t *testing.T) {
+	for _, args := range [][]string{
+		{"--help"},
+		{"-h"},
+		{"search", "--help"},
+		{"search", "-h"},
+	} {
+		var stdout, stderr strings.Builder
+		stub := &stubSearcher{}
+		if err := run(args, &stdout, &stderr, stub); err != nil {
+			t.Errorf("%v: err = %v, want nil", args, err)
+		}
+		if !strings.Contains(stdout.String(), "usage:") {
+			t.Errorf("%v: stdout = %q, want the usage", args, stdout.String())
+		}
+		if stderr.Len() != 0 {
+			t.Errorf("%v: stderr = %q, want empty", args, stderr.String())
+		}
+		if stub.called {
+			t.Errorf("%v: searcher was called with term=%q", args, stub.term)
+		}
+	}
+}
+
 // S3: the whole phrase reaches the searcher, and flags after the term still work.
 func TestMultiWordTermAndFlags(t *testing.T) {
 	var stdout strings.Builder

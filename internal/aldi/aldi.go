@@ -129,14 +129,18 @@ type hit struct {
 	} `json:"currentPrice"`
 }
 
-// Search returns at most limit hits for term from the catalogue of region.
+// Search returns at most limit hits for term from the catalogue of region. A limit
+// outside 1..MaxLimit is rejected, never clamped, so the CLI can report it as a
+// usage error (S3).
 func (c *Client) Search(ctx context.Context, region, term string, limit int) (contract.Result, error) {
 	res := contract.Result{Store: "aldi", Query: term, Hits: []contract.Hit{}}
+	if limit < 1 || limit > MaxLimit {
+		return res, fmt.Errorf("aldi: limit must be between 1 and %d, got %d", MaxLimit, limit)
+	}
 	path, err := regionIndex(region)
 	if err != nil {
 		return res, err
 	}
-	limit = clampLimit(limit)
 
 	body, err := json.Marshal(query{Query: term, HitsPerPage: limit})
 	if err != nil {
@@ -279,15 +283,4 @@ func retryAfter(resp *http.Response, attempt int) time.Duration {
 		return min(time.Duration(secs)*time.Second, maxRetryWait)
 	}
 	return min(time.Duration(attempt)*500*time.Millisecond, maxRetryWait)
-}
-
-func clampLimit(limit int) int {
-	switch {
-	case limit <= 0:
-		return DefaultLimit
-	case limit > MaxLimit:
-		return MaxLimit
-	default:
-		return limit
-	}
 }

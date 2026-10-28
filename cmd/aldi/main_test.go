@@ -151,6 +151,27 @@ func TestUsageErrorsExitTwo(t *testing.T) {
 	}
 }
 
+// S3: an out-of-range --limit is rejected, never silently clamped.
+func TestLimitOutOfRangeIsRejected(t *testing.T) {
+	for _, limit := range []string{"0", "-1", "101", "1000"} {
+		var stdout, stderr bytes.Buffer
+		f := &fake{res: sample()}
+		if code := run([]string{"search", "leche", "--limit", limit, "--json"}, &stdout, &stderr, f); code != 2 {
+			t.Errorf("--limit %s: exit = %d, want 2", limit, code)
+		}
+		if stdout.Len() != 0 {
+			t.Errorf("--limit %s: stdout = %q, want empty", limit, stdout.String())
+		}
+		if f.term != "" || f.limit != 0 {
+			t.Errorf("--limit %s: must not query, got term %q limit %d", limit, f.term, f.limit)
+		}
+		want := "--limit must be between 1 and 100, got " + limit
+		if got := stderr.String(); !strings.Contains(got, want) {
+			t.Errorf("--limit %s: stderr = %q, want it to contain %q", limit, got, want)
+		}
+	}
+}
+
 func TestFetchErrorsExitOneAndKeepStdoutClean(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	code := run([]string{"search", "leche", "--json"}, &stdout, &stderr, &fake{err: errors.New("aldi: search status 503")})

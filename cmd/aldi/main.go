@@ -78,8 +78,9 @@ func runSearch(args []string, stdout, stderr io.Writer, s searcher) int {
 		fs.Usage()
 		return 2
 	}
+	// S3: a --limit outside 1..100 is a usage error, never silently clamped.
 	if *limit < 1 || *limit > aldi.MaxLimit {
-		fmt.Fprintf(stderr, "aldi: --limit must be between 1 and %d\n", aldi.MaxLimit)
+		fmt.Fprintf(stderr, "--limit must be between 1 and %d, got %d\n", aldi.MaxLimit, *limit)
 		return 2
 	}
 	if !aldi.ValidRegion(*region) {
