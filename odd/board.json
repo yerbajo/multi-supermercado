@@ -6,15 +6,19 @@
   ],
   "tasks": [
     {
-      "title": "Comparar las tres políticas de cero coincidencias con datos reales",
-      "group": "Cesta y comparación",
-      "desc": "Medir, con las seis cadenas y al menos tres consultas, qué devuelve cada política: (a) no mostrar los resultados de cobertura 0, (b) mostrarlos aparte marcados como no relacionados, (c) dejarlos al final de la misma lista. Entregable: una tabla con resultados por cadena y consulta, y una recomendación con su coste."
-    },
-    {
       "title": "Aplicar la política elegida en el agregador y la web",
       "group": "Cesta y comparación",
-      "desc": "Implementar la política aprobada en internal/aggregate y, si necesita campo nuevo, en web/. Hecho significa: la cadena que no tiene nada relevante lo dice, no enseña un enjuague bucal como resultado de «leche entera», y las pruebas lo fijan.",
-      "deps": ["Comparar las tres políticas de cero coincidencias con datos reales"]
+      "desc": "Implementar la opción A que el humano eligió en CYC-01: un resultado que no contiene ninguna de las palabras buscadas no se muestra, y la cadena dice «sin coincidencias para este término». Hecho significa: «leche entera» no devuelve enjuague bucal en LIDL, las otras cinco cadenas siguen funcionando y las pruebas lo fijan."
+    },
+    {
+      "title": "Cesta agrupada por supermercado y botón de cesta con icono",
+      "group": "Cesta y comparación",
+      "desc": "S14: la cesta se lee por cadena —una sección por supermercado con su marca, su subtotal y las líneas que resuelve—, y la acción de elegir el producto de una cadena pasa a ser un botón de icono de cesta con nombre accesible, en lugar de un botón de texto. Hecho significa: una línea con producto distinto en tres cadenas aparece en las tres secciones con su precio, y el botón se puede usar con teclado y con lector de pantalla."
+    },
+    {
+      "title": "La cesta debe usar los mismos sinónimos que la búsqueda",
+      "group": "Cesta y comparación",
+      "desc": "Defecto encontrado al implementar la cesta por supermercado: una línea sin producto fijado no se resuelve en ninguna cadena para «leche de soja», porque el emparejamiento de la cesta rechaza nombres como «Bebida de soja» al no contener «leche». La búsqueda sí aplica la expansión de sinónimos (T38); la cesta no. Hecho significa: añadir «leche de soja» sin elegir producto la resuelve en ALDI y DIA, que sí la venden."
     },
     {
       "title": "Pedir categories{name} en la consulta GraphQL de MAS",
