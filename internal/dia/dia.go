@@ -4,23 +4,15 @@ package dia
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
-
-	utls "github.com/refraction-networking/utls"
-	"golang.org/x/net/http2"
 
 	"multisuper/internal/contract"
 )
@@ -33,8 +25,7 @@ const (
 	// MaxLimit caps --limit so one query never returns an unbounded list.
 	MaxLimit = 100
 
-	searchPath = "/api/v1/search-back/search"
-	userAgent  = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+	searchPath = "/api/v1/search-back/search/reduced"
 
 	maxAttempts = 3
 	// maxRetryWait caps a server-supplied Retry-After, which is otherwise untrusted.
@@ -43,100 +34,39 @@ const (
 	requestTimeout = 20 * time.Second
 )
 
+// platformHeaders are the DIA Android app's platform headers. The search endpoint
+// only answers requests that look like the app, and it answers plain TLS: measured
+// 5/5 HTTP 200 with these exact values and curl. They are not secrets and carry no
+// account data; the provenance is odd/research/dia-android-api.md §5.1.
+var platformHeaders = map[string]string{
+	"User-Agent":                "okhttp/4.12.0",
+	"Accept":                    "application/json",
+	"Accept-Language":           "es-ES",
+	"X-Id-Application-From":     "8",
+	"X-Mob-Platform-From":       "OneApp-Android",
+	"order_source":              "app",
+	"x-avoid-seo-redirections":  "true",
+	"X-Mob-Os-Version":          "14",
+	"X-Mob-Application-Version": "6.18.1",
+	"X-Mob-Manufacturer":        "Google",
+	"X-Mob-Deviceid":            "3f2a9c1be7d54a80",
+	"X-Retail-Visitor-Id":       "20250702180000000000000000000001",
+	"X-Device-Trace-Id":         "8f14e45fceea167a",
+	"X-App-Supports-L1-As-L2":   "true",
+}
+
 // ErrUnavailable reports that dia.es kept answering 429/503 after all retries.
 var ErrUnavailable = errors.New("dia search unavailable after retries")
-
-// errFingerprint marks a failed Chrome-fingerprint handshake, the one failure
-// that degrades to the standard transport. An HTTP status never does.
-var errFingerprint = errors.New("dia: uTLS handshake failed")
 
 // Client queries the DIA search API. The zero value is not usable; use NewClient.
 type Client struct {
 	BaseURL string
 	HTTP    *http.Client
-	// RootCAs overrides the roots dia.es is verified against; nil means the
-	// system pool. Set it before the first request.
-	RootCAs *x509.CertPool
-
-	warn     io.Writer
-	warnOnce sync.Once
 }
 
-// NewClient returns a client with the browser headers, the timeout and the TLS
-// fingerprint dia.es expects: it sits behind Akamai, which answers 403 to Go's
-// own ClientHello even when every header matches a browser.
+// NewClient returns a client with the app's headers and the timeout dia.es expects.
 func NewClient() *Client {
-	c := &Client{BaseURL: DefaultBaseURL}
-	c.HTTP = &http.Client{Timeout: requestTimeout, Transport: c.transport()}
-	return c
-}
-
-// transport routes by scheme: https presents Chrome's handshake and keeps HTTP/2
-// like a browser, plain http (a local mirror, the tests) keeps the standard stack.
-type transport struct {
-	fingerprint *http2.Transport
-	plain       http.RoundTripper
-}
-
-func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.URL.Scheme == "https" {
-		return t.fingerprint.RoundTrip(req)
-	}
-	return t.plain.RoundTrip(req)
-}
-
-func (c *Client) transport() *transport {
-	return &transport{
-		fingerprint: &http2.Transport{DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-			return c.dialTLS(ctx, network, addr)
-		}},
-		plain: &http.Transport{ForceAttemptHTTP2: true},
-	}
-}
-
-// dialTLS opens addr and does Chrome's handshake over it; http2.Transport needs
-// the negotiated protocol to be h2, which the preset already offers.
-func (c *Client) dialTLS(ctx context.Context, network, addr string) (net.Conn, error) {
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, err
-	}
-	var d net.Dialer
-	raw, err := d.DialContext(ctx, network, addr)
-	if err != nil {
-		return nil, err
-	}
-	conn := utls.UClient(raw, &utls.Config{ServerName: host, RootCAs: c.RootCAs}, utls.HelloChrome_Auto)
-	if err := conn.HandshakeContext(ctx); err != nil {
-		raw.Close()
-		return nil, fmt.Errorf("%w: %v", errFingerprint, err)
-	}
-	if proto := conn.ConnectionState().NegotiatedProtocol; proto != http2.NextProtoTLS {
-		raw.Close()
-		return nil, fmt.Errorf("%w: server negotiated %q, not h2", errFingerprint, proto)
-	}
-	return conn, nil
-}
-
-// fallbackClient is the standard net/http stack. It only runs when the uTLS
-// handshake fails, so a future uTLS/Go incompatibility degrades instead of
-// breaking the CLI.
-func (c *Client) fallbackClient() *http.Client {
-	return &http.Client{
-		Timeout:   requestTimeout,
-		Transport: &http.Transport{ForceAttemptHTTP2: true, TLSClientConfig: &tls.Config{RootCAs: c.RootCAs}},
-	}
-}
-
-// warnFallback reports the degradation once per client, not once per request.
-func (c *Client) warnFallback(err error) {
-	c.warnOnce.Do(func() {
-		w := c.warn
-		if w == nil {
-			w = os.Stderr
-		}
-		fmt.Fprintf(w, "%v; falling back to the standard transport\n", err)
-	})
+	return &Client{BaseURL: DefaultBaseURL, HTTP: &http.Client{Timeout: requestTimeout}}
 }
 
 // Search returns at most limit hits for term. An unknown term is not an error:
@@ -146,7 +76,7 @@ func (c *Client) Search(ctx context.Context, term string, limit int) (contract.R
 	if limit < 1 || limit > MaxLimit {
 		return contract.Result{}, fmt.Errorf("dia: limit must be between 1 and %d, got %d", MaxLimit, limit)
 	}
-	body, err := c.get(ctx, strings.TrimSuffix(c.BaseURL, "/")+searchPath+"?q="+url.QueryEscape(term))
+	body, err := c.get(ctx, strings.TrimSuffix(c.BaseURL, "/")+searchPath+"?q="+url.QueryEscape(term)+"&page=0")
 	if err != nil {
 		return contract.Result{}, err
 	}
@@ -224,14 +154,15 @@ func absolute(base, path string) string {
 	return base + "/" + strings.TrimPrefix(path, "/")
 }
 
-// newSearchRequest builds one attempt with the headers dia.es expects.
+// newSearchRequest builds one attempt: the /reduced endpoint with the app's headers.
 func newSearchRequest(ctx context.Context, endpoint string) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("dia: build request: %w", err)
 	}
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/json")
+	for k, v := range platformHeaders {
+		req.Header.Set(k, v)
+	}
 	return req, nil
 }
 
@@ -245,12 +176,6 @@ func (c *Client) get(ctx context.Context, endpoint string) ([]byte, error) {
 		}
 
 		resp, err := c.HTTP.Do(req)
-		if err != nil && errors.Is(err, errFingerprint) {
-			c.warnFallback(err)
-			if retry, buildErr := newSearchRequest(ctx, endpoint); buildErr == nil {
-				resp, err = c.fallbackClient().Do(retry)
-			}
-		}
 		if err != nil {
 			return nil, fmt.Errorf("dia: search request: %w", err)
 		}

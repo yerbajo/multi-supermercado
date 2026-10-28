@@ -2,10 +2,8 @@ package dia
 
 import (
 	"context"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -63,171 +61,88 @@ func envelope(items string) string {
 	return `{"cart":{},"customer":{},"facets":[],"footer":{},"search_items":[` + items + `]}`
 }
 
-// newTLSServer starts an h2-capable test server and a client that trusts it, so
-// the fingerprint path can be exercised end to end without dialing dia.es.
-func newTLSServer(t *testing.T, handler http.HandlerFunc) (*Client, *httptest.Server) {
+// The Android app's /reduced endpoint answers plain curl 5 times out of 5, so the
+// client must leave through the standard library. A custom Transport (the uTLS
+// fingerprint and its fallback) must not creep back.
+func TestNewClientUsesTheStandardTransport(t *testing.T) {
+	if tr := NewClient().HTTP.Transport; tr != nil {
+		t.Fatalf("HTTP.Transport = %T, want nil (net/http's own TLS stack)", tr)
+	}
+	if c := NewClient().HTTP; c.Timeout != 20*time.Second {
+		t.Fatalf("timeout = %v, want 20s", c.Timeout)
+	}
+}
+
+// readFixture returns the trimmed real /reduced response captured from dia.es.
+func readFixture(t *testing.T) []byte {
 	t.Helper()
-	srv := httptest.NewUnstartedServer(handler)
-	srv.EnableHTTP2 = true
-	srv.StartTLS()
-	t.Cleanup(srv.Close)
-
-	c := NewClient()
-	c.BaseURL = srv.URL
-	c.RootCAs = x509.NewCertPool()
-	c.RootCAs.AddCert(srv.Certificate())
-	return c, srv
-}
-
-// T10: dia.es sits behind Akamai, which answers 403 to Go's own ClientHello even
-// with browser headers. HTTPS must therefore leave through the uTLS Chrome
-// fingerprint, not through net/http's own TLS stack.
-func TestNewClientUsesChromeFingerprint(t *testing.T) {
-	tr, ok := NewClient().HTTP.Transport.(*transport)
-	if !ok {
-		t.Fatalf("transport = %T, want *dia.transport", NewClient().HTTP.Transport)
-	}
-	if tr.fingerprint.DialTLSContext == nil {
-		t.Fatal("https would go through net/http's own ClientHello, not uTLS")
-	}
-	if tr.fingerprint.TLSClientConfig != nil {
-		t.Fatal("TLSClientConfig would replace the fingerprinted handshake")
-	}
-	if tr.plain == nil {
-		t.Fatal("plain http has no transport")
-	}
-}
-
-// The fingerprinted transport must stay an HTTP/2 browser: same search, same
-// parsed result, but the server has to see HTTP/2.
-func TestSearchOverChromeFingerprint(t *testing.T) {
-	var proto string
-	c, srv := newTLSServer(t, func(w http.ResponseWriter, r *http.Request) {
-		proto = r.Proto
-		w.Write([]byte(envelope(baseItem)))
-	})
-
-	res, err := c.Search(context.Background(), "leche", 20)
-	if err != nil {
-		t.Fatalf("Search over TLS: %v", err)
-	}
-	if res.Count != 1 || res.Hits[0].ID != "74720P6" || res.Hits[0].Price == nil || *res.Hits[0].Price != 11.82 {
-		t.Fatalf("result = %+v", res)
-	}
-	if res.Hits[0].URL != srv.URL+"/huevos-leche-y-mantequilla/leche/p/74720P6" {
-		t.Fatalf("url = %q", res.Hits[0].URL)
-	}
-	if proto != "HTTP/2.0" {
-		t.Fatalf("server saw %q, want HTTP/2.0", proto)
-	}
-}
-
-// failFirstListener closes the first accepted connection, so the fingerprinted
-// handshake fails exactly once.
-type failFirstListener struct {
-	net.Listener
-	failed bool
-}
-
-func (l *failFirstListener) Accept() (net.Conn, error) {
-	conn, err := l.Listener.Accept()
-	if err != nil {
-		return nil, err
-	}
-	if l.failed {
-		return conn, nil
-	}
-	l.failed = true
-	conn.Close()
-	return l.Accept()
-}
-
-// A broken handshake degrades to the standard transport instead of failing the
-// search, and says so on stderr once per client. An HTTP status is not a
-// handshake failure, so a 403 still surfaces as an error.
-func TestSearchFallsBackWhenHandshakeFails(t *testing.T) {
-	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(envelope(baseItem)))
-	}))
-	srv.EnableHTTP2 = true
-	srv.Listener = &failFirstListener{Listener: srv.Listener}
-	srv.StartTLS()
-	t.Cleanup(srv.Close)
-
-	c := NewClient()
-	c.BaseURL = srv.URL
-	c.RootCAs = x509.NewCertPool()
-	c.RootCAs.AddCert(srv.Certificate())
-	var stderr strings.Builder
-	c.warn = &stderr
-
-	for i := 0; i < 2; i++ {
-		res, err := c.Search(context.Background(), "leche", 20)
-		if err != nil {
-			t.Fatalf("search %d did not fall back: %v", i, err)
-		}
-		if res.Count != 1 {
-			t.Fatalf("search %d: count = %d, want 1", i, res.Count)
-		}
-	}
-	if n := strings.Count(stderr.String(), "falling back"); n != 1 {
-		t.Fatalf("fallback logged %d times, want exactly 1: %q", n, stderr.String())
-	}
-}
-
-// A real answer we dislike is not a transport failure: 403 must be reported.
-func TestForbiddenIsNotAFallback(t *testing.T) {
-	c, _ := newTLSServer(t, func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "Access Denied", http.StatusForbidden)
-	})
-	var stderr strings.Builder
-	c.warn = &stderr
-	_, err := c.Search(context.Background(), "leche", 20)
-	if err == nil {
-		t.Fatal("expected an error for 403")
-	}
-	if !strings.Contains(err.Error(), "403") {
-		t.Fatalf("err = %v, want the 403 reported", err)
-	}
-	if stderr.Len() != 0 {
-		t.Fatalf("403 must not fall back, logged: %q", stderr.String())
-	}
-}
-
-func TestSearchMapsRealResponse(t *testing.T) {
 	fixture, err := os.ReadFile("testdata/search_leche_entera.json")
 	if err != nil {
 		t.Fatal(err)
 	}
+	return fixture
+}
 
+func TestSearchMapsTrimmedReducedResponse(t *testing.T) {
 	c, srv := newServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write(fixture)
+		w.Write(readFixture(t))
 	})
 
-	res, err := c.Search(context.Background(), "leche entera", 20)
+	res, err := c.Search(context.Background(), "leche", 20)
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
-	if res.Store != "dia" || res.Query != "leche entera" || res.Count != 1 || len(res.Hits) != 1 {
+	if res.Store != "dia" || res.Query != "leche" || res.Count != 3 || len(res.Hits) != 3 {
 		t.Fatalf("envelope = %+v", res)
 	}
 	want := contract.Hit{
 		Store:        "dia",
-		ID:           "74720P6",
-		Name:         "Leche entera Asturiana pack 6 x 1.5 L",
-		Brand:        "Asturiana",
-		Price:        ptr(11.82),
-		PricePerUnit: 1.31,
+		ID:           "504P6",
+		Name:         "Leche semidesnatada Dia Láctea pack 6 x 1 L",
+		Brand:        "Dia Láctea",
+		Price:        ptr(4.98),
+		PricePerUnit: 0.83,
 		Unit:         "L",
 		Currency:     "EUR",
 		Available:    true,
 		Category:     "Leche",
-		URL:          srv.URL + "/huevos-leche-y-mantequilla/leche/p/74720P6",
-		Image:        srv.URL + "/product_images/74720P6/74720P6_ISO_0_ES.jpg",
+		URL:          srv.URL + "/huevos-leche-y-mantequilla/leche/p/504P6",
+		Image:        srv.URL + "/product_images/504P6/504P6_ISO_0_ES.jpg",
 	}
 	if got := res.Hits[0]; !sameHit(got, want) {
 		t.Fatalf("hit =\n%+v\nwant\n%+v", got, want)
+	}
+	// price_per_unit and measure_unit are copied, never recomputed (S8).
+	if h := res.Hits[1]; h.PricePerUnit != 0.96 || h.Unit != "L" || h.Price == nil || *h.Price != 5.76 {
+		t.Fatalf("second hit = %+v", h)
+	}
+	if h := res.Hits[2]; h.ID != "130063P6" || h.Category != "Leche sin lactosa y enriquecidas" {
+		t.Fatalf("third hit = %+v", h)
+	}
+}
+
+// S8: an item the store answered without a prices object keeps price, currency and
+// unit absent instead of reading as 0,00 EUR.
+func TestSearchMapsRealItemWithoutPrices(t *testing.T) {
+	var doc map[string]any
+	if err := json.Unmarshal(readFixture(t), &doc); err != nil {
+		t.Fatal(err)
+	}
+	items := doc["search_items"].([]any)
+	delete(items[0].(map[string]any), "prices")
+	fixture, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c, _ := newServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write(fixture) })
+	res, err := c.Search(context.Background(), "leche", 20)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	h := res.Hits[0]
+	if h.ID != "504P6" || h.Price != nil || h.PricePerUnit != 0 || h.Unit != "" || h.Currency != "" {
+		t.Fatalf("hit without prices = %+v", h)
 	}
 }
 
@@ -434,29 +349,49 @@ func TestSearchTruncatesToValidLimit(t *testing.T) {
 	}
 }
 
+// The app's search request is the whole contract with dia.es: the /reduced path,
+// page 0, and the platform headers. Measured 5/5 HTTP 200 with exactly these.
 func TestSearchRequestShape(t *testing.T) {
-	var gotPath, gotQuery, gotUA, gotAccept string
+	var got *http.Request
 	c, _ := newServer(t, func(w http.ResponseWriter, r *http.Request) {
-		gotPath = r.URL.Path
-		gotQuery = r.URL.Query().Get("q")
-		gotUA = r.Header.Get("User-Agent")
-		gotAccept = r.Header.Get("Accept")
+		got = r.Clone(context.Background())
 		w.Write([]byte(envelope(baseItem)))
 	})
 	if _, err := c.Search(context.Background(), "leche entera", 20); err != nil {
 		t.Fatal(err)
 	}
-	if gotPath != "/api/v1/search-back/search" {
-		t.Fatalf("path = %q", gotPath)
+
+	if got.URL.Path != "/api/v1/search-back/search/reduced" {
+		t.Fatalf("path = %q", got.URL.Path)
 	}
-	if gotQuery != "leche entera" {
-		t.Fatalf("q = %q", gotQuery)
+	if q := got.URL.Query().Get("q"); q != "leche entera" {
+		t.Fatalf("q = %q", q)
 	}
-	if !strings.Contains(gotUA, "Chrome/") {
-		t.Fatalf("user-agent = %q", gotUA)
+	if p := got.URL.Query().Get("page"); p != "0" {
+		t.Fatalf("page = %q", p)
 	}
-	if gotAccept != "application/json" {
-		t.Fatalf("accept = %q", gotAccept)
+
+	// The DIA app's platform headers, verbatim from odd/research/dia-android-api.md.
+	want := map[string]string{
+		"User-Agent":                "okhttp/4.12.0",
+		"Accept":                    "application/json",
+		"Accept-Language":           "es-ES",
+		"X-Id-Application-From":     "8",
+		"X-Mob-Platform-From":       "OneApp-Android",
+		"order_source":              "app",
+		"x-avoid-seo-redirections":  "true",
+		"X-Mob-Os-Version":          "14",
+		"X-Mob-Application-Version": "6.18.1",
+		"X-Mob-Manufacturer":        "Google",
+		"X-Mob-Deviceid":            "3f2a9c1be7d54a80",
+		"X-Retail-Visitor-Id":       "20250702180000000000000000000001",
+		"X-Device-Trace-Id":         "8f14e45fceea167a",
+		"X-App-Supports-L1-As-L2":   "true",
+	}
+	for k, v := range want {
+		if got := got.Header.Get(k); got != v {
+			t.Errorf("header %s = %q, want %q", k, got, v)
+		}
 	}
 }
 
@@ -503,7 +438,7 @@ func TestJSONFieldNames(t *testing.T) {
 	if err := json.Unmarshal(fixture, &env); err != nil {
 		t.Fatal(err)
 	}
-	for _, k := range []string{"cart", "customer", "facets", "footer", "search_items"} {
+	for _, k := range []string{"cart", "facets", "locale", "login_status", "pagination", "query_id", "search_items", "sort", "suggestions", "total_items"} {
 		if _, ok := env[k]; !ok {
 			t.Errorf("fixture missing envelope key %q", k)
 		}
