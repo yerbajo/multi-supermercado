@@ -84,10 +84,14 @@ func TestSearchMapsCapturedResponse(t *testing.T) {
 	}
 
 	want := contract.Hit{
-		Store:    "carrefour",
-		ID:       "8410297110979",
-		Name:     "Leche entera Central Lechera Asturiana botella 2,2 l.",
-		Brand:    "central lechera asturiana",
+		Store: "carrefour",
+		ID:    "8410297110979",
+		Name:  "Leche entera Central Lechera Asturiana botella 2,2 l.",
+		Brand: "central lechera asturiana",
+		// The barcode Superfudis publishes for this offer, and the sold size built from
+		// its published unit_size_value/unit_size_unit (2200 ml), not from the name.
+		EAN:      "8410297110979",
+		Size:     "2200 ml",
 		Price:    ptr(2.75),
 		Currency: "EUR",
 		// No Available: Superfudis publishes no stock field (S8).

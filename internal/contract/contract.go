@@ -12,10 +12,17 @@ import (
 // Price is nil when the store publishes no price for the product: an absent price
 // means "not published", never 0. PricePerUnit is derived from published sizes only.
 type Hit struct {
-	Store        string   `json:"store"`
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Brand        string   `json:"brand,omitempty"`
+	Store string `json:"store"`
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Brand string `json:"brand,omitempty"`
+	// EAN is the barcode when the chain publishes one. It is the key the aggregator
+	// matches the same product across chains with, so it is copied, never derived.
+	EAN string `json:"ean,omitempty"`
+	// Size is the sold size as published text ("2200 ml", "6 x 1000 ml"), composed from
+	// the numbers the chain publishes and never parsed out of the name. It disambiguates
+	// variants when there is no EAN.
+	Size         string   `json:"size,omitempty"`
 	Price        *float64 `json:"price,omitempty"`
 	PricePerUnit float64  `json:"pricePerUnit,omitempty"`
 	Unit         string   `json:"unit,omitempty"` // kg | L | unit

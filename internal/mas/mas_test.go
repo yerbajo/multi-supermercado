@@ -235,3 +235,16 @@ func compact(t *testing.T, s string) string {
 	}
 	return strings.TrimRight(buf.String(), "\n")
 }
+
+// MAS publishes no barcode and no sold size through GraphQL, so the aggregator gets no
+// identifier from this chain. Verified live: ProductInterface and SimpleProduct expose
+// no ean/gtin/barcode field and products exposes no custom_attributes field at all.
+func TestSearchCarriesNoIdentifierMASDoesNotPublish(t *testing.T) {
+	body := `{"data":{"products":{"items":[{"name":"Leche entera PASCUAL botella 1,5l","sku":"062595","url_key":"lacteos/pascual","stock_status":"IN_STOCK","price":{"regularPrice":{"amount":{"value":1.5,"currency":"EUR"}}}}]}}}`
+	got := searchJSON(t, body, http.StatusOK)
+	for _, key := range []string{`"ean"`, `"size"`} {
+		if strings.Contains(got, key) {
+			t.Errorf("hit carries %s though MAS does not publish it:\n%s", key, got)
+		}
+	}
+}

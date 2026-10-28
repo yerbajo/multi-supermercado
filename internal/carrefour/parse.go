@@ -3,6 +3,7 @@ package carrefour
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	"multisuper/internal/contract"
@@ -49,6 +50,10 @@ func (o offer) hit(id string) contract.Hit {
 		// aggregator can link the offer. It is Superfudis-reported, not fetched by us:
 		// carrefour.es answers Cloudflare 403 (S9).
 		URL: o.SourceURL,
+		// Superfudis publishes the product's barcode, so the offer carries it; when it
+		// publishes none the key stays absent rather than invented.
+		EAN:  strings.TrimSpace(o.EAN),
+		Size: sizeText(o),
 	}
 	if o.PriceEUR == nil {
 		return h
@@ -103,6 +108,23 @@ func size(o offer) (float64, string) {
 		return 0, ""
 	}
 	return total / d.div, d.unit
+}
+
+// sizeText is the sold size as published text: the published unit size, prefixed by the
+// published pack count when there is more than one ("6 x 1000 ml"). No unit conversion
+// and no reading of the name: a size nobody published stays empty (S8).
+func sizeText(o offer) string {
+	value := deref(o.UnitSizeValue)
+	unit := strings.TrimSpace(deref(o.UnitSizeUnit))
+	if value <= 0 || unit == "" {
+		return ""
+	}
+	number := strings.Replace(strconv.FormatFloat(value, 'f', -1, 64), ".", ",", 1)
+	if units := deref(o.NUnits); units > 1 {
+		count := strconv.FormatFloat(units, 'f', -1, 64)
+		return count + " x " + number + " " + unit
+	}
+	return number + " " + unit
 }
 
 func deref[T any](p *T) T {

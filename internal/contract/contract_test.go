@@ -29,6 +29,7 @@ func TestEncodeEmitsTheFieldNamesTheWebAppConsumes(t *testing.T) {
 		Hits: []Hit{{
 			Store: "x", ID: "1", Name: "n", Price: ptr(1.5),
 			PricePerUnit: 2, Unit: "kg", Currency: "EUR", Available: Bool(true),
+			EAN: "8410297110979", Size: "2200 ml",
 		}},
 	})
 	if err != nil {
@@ -38,6 +39,7 @@ func TestEncodeEmitsTheFieldNamesTheWebAppConsumes(t *testing.T) {
 	for _, key := range []string{
 		`"store"`, `"query"`, `"count"`, `"hits"`,
 		`"id"`, `"name"`, `"price"`, `"pricePerUnit"`, `"unit"`, `"currency"`, `"available"`,
+		`"ean"`, `"size"`,
 	} {
 		if !strings.Contains(buf.String(), key) {
 			t.Errorf("encoded result is missing %s:\n%s", key, buf.String())
@@ -64,6 +66,22 @@ func TestEncodeOmitsUnknownOptionalFields(t *testing.T) {
 		if strings.Contains(buf.String(), key) {
 			t.Errorf("empty %s should be omitted:\n%s", key, buf.String())
 		}
+	}
+}
+
+// The shared product identity: a chain that publishes a barcode or a sold size writes
+// them here, so the aggregator can tell two chains sell the same product.
+func TestEncodeEmitsTheIdentifiersAChainPublishes(t *testing.T) {
+	var buf bytes.Buffer
+	err := Encode(&buf, Result{Store: "x", Query: "q", Count: 1, Hits: []Hit{{
+		Store: "x", ID: "8410297110979", Name: "n", EAN: "8410297110979", Size: "2200 ml",
+	}}})
+	if err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	want := `{"store":"x","query":"q","count":1,"hits":[{"store":"x","id":"8410297110979","name":"n","ean":"8410297110979","size":"2200 ml"}]}`
+	if got := compact(t, buf.String()); got != want {
+		t.Fatalf("json mismatch\n got: %s\nwant: %s", got, want)
 	}
 }
 

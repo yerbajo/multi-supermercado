@@ -1,6 +1,12 @@
 package carrefour
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"multisuper/internal/contract"
+)
 
 func ptr[T any](v T) *T { return &v }
 
@@ -85,4 +91,95 @@ func TestHitLeavesUnitPriceEmptyWithoutPublishedSize(t *testing.T) {
 	if h.PricePerUnit != 0 || h.Unit != "" {
 		t.Fatalf("unit price = %v %q, want it left empty", h.PricePerUnit, h.Unit)
 	}
+}
+
+// The offer carries the barcode Superfudis publishes; the aggregator matches the same
+// product across chains with it, so it is copied as published and never derived.
+func TestHitCarriesThePublishedEAN(t *testing.T) {
+	o := offer{
+		Name: "Leche entera Central Lechera Asturiana botella 2,2 l.", EAN: "8410297110979",
+		NUnits: ptr(1.0), UnitSizeValue: ptr(2200.0), UnitSizeUnit: ptr("ml"),
+		PriceEUR: ptr(2.75), MatchType: "exact_ean",
+	}
+	got := marshal(t, o.hit(offerID(o, 0)))
+	for _, key := range []string{`"ean":"8410297110979"`, `"size":"2200 ml"`} {
+		if !strings.Contains(got, key) {
+			t.Errorf("hit is missing %s:\n%s", key, got)
+		}
+	}
+}
+
+// Size is text built from the numbers Superfudis publishes (unit_size_value,
+// unit_size_unit, n_units), never parsed out of the product name.
+func TestSizeTextIsBuiltFromPublishedNumbers(t *testing.T) {
+	tests := []struct {
+		name  string
+		offer offer
+		want  string
+	}{
+		{
+			name:  "single bottle in millilitres",
+			offer: offer{Name: "Leche 2,2 l.", NUnits: ptr(1.0), UnitSizeValue: ptr(2200.0), UnitSizeUnit: ptr("ml")},
+			want:  "2200 ml",
+		},
+		{
+			name:  "pack multiplies nothing but shows the pack",
+			offer: offer{Name: "Leche pack 6 x 1 L", NUnits: ptr(6.0), UnitSizeValue: ptr(1000.0), UnitSizeUnit: ptr("ml")},
+			want:  "6 x 1000 ml",
+		},
+		{
+			name:  "weight in grams keeps the published unit",
+			offer: offer{Name: "Azúcar 370 gr", UnitSizeValue: ptr(370.0), UnitSizeUnit: ptr("gr")},
+			want:  "370 gr",
+		},
+		{
+			name:  "decimal comma in the published value",
+			offer: offer{UnitSizeValue: ptr(1.5), UnitSizeUnit: ptr("l")},
+			want:  "1,5 l",
+		},
+		{
+			name:  "the name is never read",
+			offer: offer{Name: "Leche entera 2,2 l.", NUnits: ptr(1.0)},
+			want:  "",
+		},
+		{
+			name:  "a value without a unit is not a size",
+			offer: offer{UnitSizeValue: ptr(2200.0)},
+			want:  "",
+		},
+		{
+			name:  "a unit without a value is not a size",
+			offer: offer{UnitSizeUnit: ptr("ml")},
+			want:  "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sizeText(tt.offer); got != tt.want {
+				t.Fatalf("sizeText() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// An offer Superfudis publishes no barcode and no size for leaves both keys out: the
+// aggregator must not read an absent identifier as a real one.
+func TestHitOmitsIdentifiersSuperfudisDidNotPublish(t *testing.T) {
+	o := offer{Name: "Leche entera 2,2 l.", MatchType: "fuzzy", PriceEUR: ptr(2.75)}
+	got := marshal(t, o.hit(offerID(o, 1)))
+	for _, key := range []string{`"ean"`, `"size"`} {
+		if strings.Contains(got, key) {
+			t.Errorf("hit carries %s though Superfudis published none:\n%s", key, got)
+		}
+	}
+}
+
+// marshal serialises one hit so the assertions read the JSON the web app receives.
+func marshal(t *testing.T, h contract.Hit) string {
+	t.Helper()
+	raw, err := json.Marshal(h)
+	if err != nil {
+		t.Fatalf("marshal hit: %v", err)
+	}
+	return string(raw)
 }
