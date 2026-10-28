@@ -161,6 +161,13 @@ y `total_count` verificados (245 resultados para «leche», 20 por página).
       responde `stale`, no `missing`).
       Así el emparejamiento deja de ser una apuesta silenciosa. Ruta: `gentle-ai-worker`.
 
+- [ ] **T35** Relevancia de la búsqueda multipalabra (petición del usuario: «si pongo 2 palabras
+      es ideal que las 2 palabras aparezcan en los resultados o si no 1 de ellos»). Medido con
+      el binario: LIDL devuelve *chocolate*, *lacón* y *enjuague bucal* para «leche entera» y
+      un **molde para hornear** como primer resultado de «pan de molde». Se ordena por
+      cobertura de términos (todas → alguna → ninguna) pidiendo de más y recortando al límite.
+      Ruta: `gentle-ai-worker`.
+
 ## Log
 
 - **L1** (literal) «cli de supermecardos. Creo que existe un mercadona-cli. la idea es

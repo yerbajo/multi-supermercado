@@ -77,7 +77,21 @@ y ranking), `multisuper basket candidates` (candidatos para que el usuario elija
       DIA». Sin errores de consola.
 - [ ] **T34** Probar `/api/cart/dia` en vivo (hoy solo con stubs): llena una cesta anónima
       real de DIA, igual que `dia cart add`. Es el único paso del producto sin ejercitar.
-- [ ] **T32** Identidad de **línea** en la cesta (bloquea la web): hoy una entrada fijada ata el
+- [x] **T36** Quitar el ruido y dar identidad visual («quita los supermercados que no responden
+      y añade logos de los que si, mejora la experiencia visual»). Las cadenas con error dejan
+      de ocupar fila de competidor y pasan a una línea compacta con motivo y reintento; cada
+      cadena mostrada lleva su **marca en SVG en línea** (sin ficheros ni URLs externas, por la
+      regla de artboards autocontenidos). Contraste medido par a par; verificado con captura
+      propia a 1440 px.
+- [x] **T37** Quitar la repetición de las tarjetas de tienda (visto en una captura a 1440 px):
+      cada tarjeta decía lo mismo tres o cuatro veces (ALCAMPO duplicaba la idea, DIA repetía
+      la zona del servidor tres veces) y el contador «3 tiendas elegidas» contradecía a tres
+      tarjetas que decían «sin tienda que elegir». Ahora: estado, logo, etiqueta de precio,
+      **una** frase de mecanismo y **un** chip derivado de `mode`; contador «3 de 6 cadenas
+      permiten elegir tienda · 3 elegidas». **Bug encontrado al arreglarlo:** el checkbox de
+      tienda no tenía listener — ni el contador ni el ranking se actualizaban nunca. Corregido
+      y verificado en vivo (2 elegidas al destildar DIA).
+- [x] **T32** Identidad de **línea** en la cesta: hoy una entrada fijada ata el
       artículo a **una** cadena, así que fijar huevos en DIA, ALDI y MAS da `1/3` de cobertura
       en todas y ningún ganador. Falta una clave de línea (`{"line":"huevos","store":"dia",
       "id":"305802","quantity":1}`) para que cada cadena tenga **su** producto de la misma
