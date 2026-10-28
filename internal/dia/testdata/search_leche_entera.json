@@ -1,0 +1,41 @@
+{
+  "cart": {
+    "postal_code": "28041",
+    "total_amount": 0,
+    "total_units": 0
+  },
+  "customer": {},
+  "facets": [],
+  "footer": {},
+  "search_items": [
+    {
+      "brand": "Asturiana",
+      "brand_type": "N",
+      "dia_brand": false,
+      "display_name": "Leche entera Asturiana pack 6 x 1.5 L",
+      "image": "/product_images/74720P6/74720P6_ISO_0_ES.jpg",
+      "l1_category_description": "Huevos, leche y mantequilla",
+      "l2_category_description": "Leche",
+      "object_id": "74720P6",
+      "sku_id": "74720P6",
+      "prices": {
+        "currency": "EUR",
+        "discount_percentage": 0,
+        "is_club_price": false,
+        "is_promo_price": false,
+        "measure_unit": "LITRO",
+        "price": 11.82,
+        "price_per_unit": 1.31,
+        "strikethrough_price": 11.82
+      },
+      "units_in_cart": 0,
+      "units_in_stock": 41,
+      "url": "/huevos-leche-y-mantequilla/leche/p/74720P6",
+      "allergens": [
+        {
+          "name": "Sin gluten"
+        }
+      ]
+    }
+  ]
+}
