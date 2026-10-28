@@ -17,8 +17,7 @@ import (
 
 const usage = `aldi searches the ALDI España (aldi.es) catalogue.
 
-usage:
-  aldi search <term> [--limit N] [--region pen|can|bal] [--json]
+usage: aldi search <term> [--limit N] [--region pen|can|bal] [--json]
 
 flags:
   --limit N   maximum number of hits, 1-100 (default 20)
@@ -27,7 +26,9 @@ flags:
   --json      print the shared contract JSON envelope instead of a table
 
 ALDI does not sell online: the prices are the published catalogue prices for the
-chosen region, and fresh produce is listed without a price at all.`
+chosen region, and fresh produce is listed without a price at all.
+
+exit status: 0 success, 1 fetch or parse error, 2 usage error.`
 
 // searcher is the slice of aldi.Client the command needs, so tests run offline.
 type searcher interface {
@@ -39,9 +40,18 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer, s searcher) int {
+	// S3: asking for help is not an error, in any position. Left to the flag package
+	// it returns flag.ErrHelp, which would be read as a usage error.
+	for _, arg := range args {
+		switch arg {
+		case "-h", "--h", "-help", "--help":
+			fmt.Fprintln(stdout, usage)
+			return 0
+		}
+	}
 	if len(args) > 0 {
 		switch args[0] {
-		case "-h", "--help", "help":
+		case "help":
 			fmt.Fprintln(stdout, usage)
 			return 0
 		case "search":

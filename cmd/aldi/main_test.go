@@ -192,6 +192,34 @@ func TestFetchErrorsExitOneAndKeepStdoutClean(t *testing.T) {
 	}
 }
 
+// S3: -h and --help print the usage on stdout and exit 0, in any position. Left to the
+// flag package they return flag.ErrHelp, which this CLI reads as a usage error.
+func TestHelpInAnyPositionExitsZeroWithUsageOnStdout(t *testing.T) {
+	for _, args := range [][]string{
+		{"--help"},
+		{"-h"},
+		{"search", "--help"},
+		{"search", "-h"},
+		{"search", "leche", "--help"},
+		{"search", "leche", "-h"},
+	} {
+		f := &fake{}
+		var stdout, stderr bytes.Buffer
+		if code := run(args, &stdout, &stderr, f); code != 0 {
+			t.Errorf("%v: exit = %d, want 0 (stderr %q)", args, code, stderr.String())
+		}
+		if !strings.Contains(stdout.String(), "usage: aldi search") {
+			t.Errorf("%v: stdout = %q, want the usage", args, stdout.String())
+		}
+		if stderr.Len() != 0 {
+			t.Errorf("%v: stderr = %q, want empty", args, stderr.String())
+		}
+		if f.term != "" {
+			t.Errorf("%v: searcher was called with term=%q", args, f.term)
+		}
+	}
+}
+
 func TestHelpIsRecognised(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"help"}, &stdout, &stderr, &fake{}); code != 0 {

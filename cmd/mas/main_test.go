@@ -73,6 +73,8 @@ func TestHelpExitsZeroAndPrintsUsageOnStdout(t *testing.T) {
 		{"-h"},
 		{"search", "--help"},
 		{"search", "-h"},
+		{"search", "leche", "--help"},
+		{"search", "leche", "-h"},
 	} {
 		var stdout, stderr strings.Builder
 		stub := &stubSearcher{}

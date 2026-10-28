@@ -15,6 +15,16 @@ import (
 	"multisuper/internal/dia"
 )
 
+const usage = `dia searches the DIA (dia.es) catalog.
+
+usage: dia search <term> [--limit N] [--json]
+
+flags:
+  --limit N  maximum number of hits, 1-100 (default 20)
+  --json     print the shared contract JSON envelope instead of a table
+
+exit status: 0 success, 1 fetch or parse error, 2 usage error.`
+
 // searcher is the slice of dia.Client the command needs, so tests run offline.
 type searcher interface {
 	Search(ctx context.Context, term string, limit int) (contract.Result, error)
@@ -25,11 +35,18 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer, s searcher) int {
+	// S3: asking for help is not an error, in any position. Left to the flag package
+	// it returns flag.ErrHelp, which would be read as a usage error.
+	for _, arg := range args {
+		switch arg {
+		case "-h", "--h", "-help", "--help":
+			fmt.Fprintln(stdout, usage)
+			return 0
+		}
+	}
 	fs := flag.NewFlagSet("dia", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	fs.Usage = func() {
-		fmt.Fprintln(stderr, "usage: dia search <term> [--limit N] [--json]")
-	}
+	fs.Usage = func() { fmt.Fprintln(stderr, usage) }
 	limit := fs.Int("limit", dia.DefaultLimit, "maximum number of hits (1-100)")
 	asJSON := fs.Bool("json", false, "print the contract.Result JSON instead of a table")
 

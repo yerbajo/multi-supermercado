@@ -14,7 +14,15 @@ import (
 	"multisuper/internal/contract"
 )
 
-const usage = `usage: carrefour search <term> [--limit N] [--json]`
+const usage = `carrefour searches Carrefour prices through Superfudis, the declared third-party source.
+
+usage: carrefour search <term> [--limit N] [--json]
+
+flags:
+  --limit N  maximum number of hits, 1-100 (default 20)
+  --json     print the shared contract JSON envelope instead of a table
+
+exit status: 0 success, 1 fetch or parse error, 2 usage error.`
 
 // provenanceNotice is S9's labelling: the price is reported by Superfudis, not published
 // by Carrefour. It always goes to stderr, so --json stdout stays the bare envelope.
@@ -30,6 +38,15 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer, s searcher) int {
+	// S3: asking for help is not an error, in any position. Left to the flag package
+	// it returns flag.ErrHelp, which would be read as a usage error.
+	for _, arg := range args {
+		switch arg {
+		case "-h", "--h", "-help", "--help":
+			fmt.Fprintln(stdout, usage)
+			return 0
+		}
+	}
 	fs := flag.NewFlagSet("carrefour", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprintln(stderr, usage) }

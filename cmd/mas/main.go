@@ -18,8 +18,7 @@ import (
 
 const usage = `mas searches the supermercadosmas.com catalog.
 
-usage:
-  mas search <term> [--limit N] [--page N] [--json]
+usage: mas search <term> [--limit N] [--page N] [--json]
 
 flags:
   --limit N  products per page, 1-100 (default 20)
@@ -53,23 +52,6 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer, s searcher) error {
-	if len(args) == 0 {
-		fmt.Fprintln(stderr, usage)
-		return usageError{errors.New("missing command")}
-	}
-	switch args[0] {
-	case "search":
-		return runSearch(args[1:], stdout, stderr, s)
-	case "-h", "--help", "help":
-		fmt.Fprintln(stdout, usage)
-		return nil
-	default:
-		fmt.Fprintln(stderr, usage)
-		return usageError{fmt.Errorf("unknown command %q", args[0])}
-	}
-}
-
-func runSearch(args []string, stdout, stderr io.Writer, s searcher) error {
 	// S3: asking for help is not an error, in any position. Left to the flag package
 	// it returns flag.ErrHelp through run, which would exit 1.
 	for _, arg := range args {
@@ -79,6 +61,23 @@ func runSearch(args []string, stdout, stderr io.Writer, s searcher) error {
 			return nil
 		}
 	}
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, usage)
+		return usageError{errors.New("missing command")}
+	}
+	switch args[0] {
+	case "search":
+		return runSearch(args[1:], stdout, stderr, s)
+	case "help":
+		fmt.Fprintln(stdout, usage)
+		return nil
+	default:
+		fmt.Fprintln(stderr, usage)
+		return usageError{fmt.Errorf("unknown command %q", args[0])}
+	}
+}
+
+func runSearch(args []string, stdout, stderr io.Writer, s searcher) error {
 	fs := flag.NewFlagSet("mas search", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() { fmt.Fprintln(stderr, usage) }

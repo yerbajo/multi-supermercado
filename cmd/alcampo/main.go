@@ -17,14 +17,13 @@ import (
 
 const usage = `alcampo searches the compraonline.alcampo.es catalog.
 
-usage:
-  alcampo search <term> [--limit N] [--json]
+usage: alcampo search <term> [--limit N] [--json]
 
 flags:
   --limit N  products to return, 1-100 (default 20)
   --json     print the shared contract JSON envelope instead of a table
 
-exit status is 1 on any fetch or parse error and 2 on a usage error.`
+exit status: 0 success, 1 fetch or parse error, 2 usage error.`
 
 // searcher is the one method this CLI needs; tests pass a stub.
 type searcher interface {
@@ -36,6 +35,15 @@ func main() {
 }
 
 func run(args []string, stdout, stderr io.Writer, s searcher) int {
+	// S3: asking for help is not an error, in any position. Left to the flag package
+	// it returns flag.ErrHelp, which would be read as a usage error.
+	for _, arg := range args {
+		switch arg {
+		case "-h", "--h", "-help", "--help":
+			fmt.Fprintln(stdout, usage)
+			return 0
+		}
+	}
 	if len(args) == 0 {
 		fmt.Fprintln(stderr, usage)
 		return 2
@@ -43,7 +51,7 @@ func run(args []string, stdout, stderr io.Writer, s searcher) int {
 	switch args[0] {
 	case "search":
 		return runSearch(args[1:], stdout, stderr, s)
-	case "-h", "--help", "help":
+	case "help":
 		fmt.Fprintln(stdout, usage)
 		return 0
 	default:
