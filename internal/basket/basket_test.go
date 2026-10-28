@@ -265,7 +265,7 @@ func TestDecodeRejectsInvalidBaskets(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := Decode(strings.NewReader(tt.in))
+			_, err := Decode(strings.NewReader(tt.in), sixStores)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("err = %v, want it to mention %q", err, tt.want)
 			}
@@ -274,7 +274,7 @@ func TestDecodeRejectsInvalidBaskets(t *testing.T) {
 }
 
 func TestDecodeAcceptsAValidBasket(t *testing.T) {
-	got, err := Decode(strings.NewReader(`{"items":[{"query":" leche entera ","quantity":2}]}`))
+	got, err := Decode(strings.NewReader(`{"items":[{"query":" leche entera ","quantity":2}]}`), sixStores)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
 	}
@@ -290,9 +290,10 @@ func TestEncodeWritesOneDocumentWithIntegerCents(t *testing.T) {
 			Query: "leche entera", Quantity: 2,
 			Resolved: map[string]Resolved{"mas": {ID: "1", Name: "Leche entera Pascual 1 L", UnitCents: 289, LineCents: 578}},
 			Missing:  []string{"carrefour"},
+			Stale:    []string{},
 		}},
 		Chains: []ChainResult{
-			{Store: "mas", TotalCents: 578, Coverage: "1/1", Missing: []string{}},
+			{Store: "mas", TotalCents: 578, Coverage: "1/1", Missing: []string{}, Stale: []string{}},
 			{Store: "carrefour", Error: &aggregate.StoreError{Code: aggregate.CodeQuota, Retryable: true, Message: "quota"}},
 		},
 		Ranking: []Rank{{Store: "mas", TotalCents: 578}},
@@ -313,7 +314,7 @@ func TestEncodeWritesOneDocumentWithIntegerCents(t *testing.T) {
 		t.Fatalf("stdout carries more than one JSON document (%v):\n%s", err, buf.String())
 	}
 	for _, key := range []string{`"items"`, `"chains"`, `"ranking"`, `"query"`, `"quantity"`,
-		`"resolved"`, `"missing"`, `"id"`, `"name"`, `"unitCents"`, `"lineCents"`,
+		`"resolved"`, `"missing"`, `"stale"`, `"id"`, `"name"`, `"unitCents"`, `"lineCents"`,
 		`"store"`, `"totalCents"`, `"coverage"`, `"elapsedMs"`, `"error"`} {
 		if !strings.Contains(buf.String(), key) {
 			t.Errorf("encoded result is missing %s:\n%s", key, buf.String())

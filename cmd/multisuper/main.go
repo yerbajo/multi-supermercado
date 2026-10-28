@@ -27,6 +27,7 @@ const usage = `multisuper searches every supermarket chain at once.
 
 usage: multisuper find <term> [--limit N] [--timeout D] [--only store1,store2] [--json]
        multisuper basket -f <basket.json|-> [--limit N] [--timeout D] [--only ...] [--json]
+       multisuper basket candidates -f <basket.json|-> [--candidates N] [--only ...] [--json]
 
 flags:
   --limit N     maximum hits per chain, 1-100 (default 20)
@@ -42,7 +43,8 @@ Hit prices are published by each chain as-is; there is no cross-chain merging (t
 needs the EAN) and no winner is picked.
 
 basket prices the user's own list of goods in every chain and ranks the chains that can
-fill it completely: see "multisuper basket --help".
+fill it completely; basket candidates proposes scored products per item and chain so the
+user can pin a choice by id. See "multisuper basket --help".
 
 exit status: find: 0 at least one chain answered (even with no hits), 1 every chain
              failed, 2 usage error. basket: 1 when no chain covers the whole basket.`

@@ -172,27 +172,43 @@ func Cents(price float64) int64 {
 // best picks one candidate for query: the highest score above the threshold, the
 // cheapest among equals, the lowest id among those. A candidate without a published
 // price is skipped, because it cannot join a comparable total.
-func best(query string, hits []contract.Hit) (contract.Hit, int64, bool) {
-	var (
-		pick  contract.Hit
-		cents int64
-		top   float64
-		found bool
-	)
+func best(query string, hits []contract.Hit) (Candidate, bool) {
+	for _, c := range rank(query, hits) {
+		if c.Score < matchThreshold {
+			// rank is score-ordered: nothing below this can match.
+			return Candidate{}, false
+		}
+		return c, true
+	}
+	return Candidate{}, false
+}
+
+// rank orders the priced candidates for query: score desc, then cheapest, then id, so
+// the same answer always produces the same list. It is the one ordering the automatic
+// pick and the candidate list share, and it keeps below-threshold candidates: the list is
+// a proposal a human judges, and the score is how the human judges it.
+func rank(query string, hits []contract.Hit) []Candidate {
+	out := make([]Candidate, 0, len(hits))
 	for _, h := range hits {
 		if h.Price == nil {
 			continue
 		}
-		c := Cents(*h.Price)
-		s := score(query, h.Name)
-		if s < matchThreshold {
-			continue
-		}
-		better := !found || s > top ||
-			(s == top && (c < cents || (c == cents && h.ID < pick.ID)))
-		if better {
-			pick, cents, top, found = h, c, s, true
-		}
+		out = append(out, Candidate{
+			ID:        h.ID,
+			Name:      h.Name,
+			UnitCents: Cents(*h.Price),
+			Score:     score(query, h.Name),
+		})
 	}
-	return pick, cents, found
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if a.Score != b.Score {
+			return a.Score > b.Score
+		}
+		if a.UnitCents != b.UnitCents {
+			return a.UnitCents < b.UnitCents
+		}
+		return a.ID < b.ID
+	})
+	return out
 }

@@ -108,12 +108,12 @@ func TestBestPicksTheCheapestOfTheHighestScore(t *testing.T) {
 		{ID: "a", Name: "Leche entera Carrefour 1 L", Price: ptr(0.99)},
 		{ID: "z", Name: "Leche condensada LA LECHERA 370 gr", Price: ptr(0.10)},
 	}
-	got, cents, ok := best("leche entera", hits)
+	got, ok := best("leche entera", hits)
 	if !ok {
 		t.Fatal("no candidate matched")
 	}
-	if got.ID != "a" || cents != 99 {
-		t.Fatalf("got %q at %d cents, want a at 99", got.ID, cents)
+	if got.ID != "a" || got.UnitCents != 99 {
+		t.Fatalf("got %q at %d cents, want a at 99", got.ID, got.UnitCents)
 	}
 }
 
@@ -124,11 +124,11 @@ func TestBestSkipsCandidatesWithoutAPublishedPrice(t *testing.T) {
 		{ID: "free", Name: "Leche entera gratis"},
 		{ID: "paid", Name: "Leche entera Carrefour 1 L", Price: ptr(1.05)},
 	}
-	got, cents, ok := best("leche entera", hits)
-	if !ok || got.ID != "paid" || cents != 105 {
-		t.Fatalf("got %q %d %v, want paid 105 true", got.ID, cents, ok)
+	got, ok := best("leche entera", hits)
+	if !ok || got.ID != "paid" || got.UnitCents != 105 {
+		t.Fatalf("got %q %d %v, want paid 105 true", got.ID, got.UnitCents, ok)
 	}
-	if _, _, ok := best("leche entera", []contract.Hit{{ID: "free", Name: "Leche entera gratis"}}); ok {
+	if _, ok := best("leche entera", []contract.Hit{{ID: "free", Name: "Leche entera gratis"}}); ok {
 		t.Fatal("a hit without a price was treated as a match")
 	}
 }
