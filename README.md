@@ -5,9 +5,9 @@ Seis binarios, uno por cadena de supermercados, que convierten el catálogo de c
 las cadenas y compara €/unidad; el carrito de cada tienda es una fase posterior.
 
 ```
-dia        → dia.es                          REST propio (search-back)
+dia        → dia.es                          API de la app Android (endpoint /reduced)
 mas        → supermercadosmas.com           Magento 2 GraphQL
-aldi       → aldi.es                        Algolia (search-only)
+aldi       → aldi.es                        Algolia (search-only), un índice por región
 lidl       → lidl.es                        API propia con parámetro `version`
 alcampo    → compraonline.alcampo.es        REST tras AWS WAF
 carrefour  → vía Superfudis (tercero)       API pública del comparador
@@ -32,6 +32,8 @@ Comando único en todas las cadenas: `search <término> [--limit N] [--json]`.
 | `1` | error al obtener o al parsear la respuesta de la tienda |
 | `2` | error de uso: falta el término, `--limit` fuera de 1..100, bandera desconocida |
 
+`-h`/`--help` en cualquier posición imprime la ayuda en stdout y sale con `0`.
+
 El término es **la frase completa**: `dia search leche entera` busca «leche entera». Un
 `--limit` inválido se rechaza; no se recorta en silencio.
 
@@ -41,66 +43,73 @@ El término es **la frase completa**: `dia search leche entera` busca «leche en
 ## Contrato JSON
 
 Con `--json`, stdout lleva **exactamente un documento** y nada más; los errores y los avisos
-van a stderr.
+van a stderr. Ejemplo real, reproducible con `dia search leche --limit 1 --json`:
 
 ```json
 {
-  "store": "mas",
+  "store": "dia",
   "query": "leche",
-  "count": 3,
+  "count": 1,
   "hits": [
     {
-      "store": "mas",
-      "id": "114042",
-      "name": "Leche condensada LA LECHERA 370 gr",
-      "brand": "LA LECHERA",
-      "price": 2.89,
-      "pricePerUnit": 7.81,
-      "unit": "kg",
+      "store": "dia",
+      "id": "504P6",
+      "name": "Leche semidesnatada Dia Láctea pack 6 x 1 L",
+      "brand": "Dia Láctea",
+      "price": 4.98,
+      "pricePerUnit": 0.83,
+      "unit": "L",
       "currency": "EUR",
       "available": true,
-      "category": "Lacteos sustitutivos",
-      "url": "https://www.supermercadosmas.com/lacteos-sustitutivos/leche-condensada-la-lechera-370-gr/",
-      "image": "https://…"
+      "category": "Leche",
+      "url": "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/504P6",
+      "image": "https://www.dia.es/product_images/504P6/504P6_ISO_0_ES.jpg"
     }
   ]
 }
 ```
 
-- `price`: número en euros, **u omitido** cuando la tienda no publica precio. Un `0` publicado
-  es un precio real; la ausencia es la única forma de decir «no publicado».
-- `pricePerUnit` + `unit` (`kg` | `L` | `unit`): solo desde datos publicados por la tienda
-  (precio unitario propio, o tamaño declarado). Nunca se deduce del nombre si la tienda no lo
-  publica, salvo en MAS y en Lidl, donde el tamaño forma parte del dato de venta.
-- `count` = número de hits devueltos, no el total del catálogo.
-- `id` es estable dentro de la cadena y sirve de clave para el carrito futuro.
+La regla es una sola: **lo que la tienda no publica, no aparece**.
+
+| Campo | Regla |
+|---|---|
+| `price` / `currency` | número en euros, **u omitidos** si la tienda no publica precio. Un `0` publicado es un precio real; la ausencia es la única forma de decir «no publicado». `currency` nunca aparece sin `price`. |
+| `pricePerUnit` / `unit` | solo desde datos publicados por la tienda. `unit` ∈ `kg` \| `L` \| `unit`. **Nunca `pricePerUnit` sin `unit`**: si la unidad no se entiende, se omiten los dos. |
+| `available` | `true`/`false` cuando la tienda lo dice, **omitido cuando no lo dice**. Una clave ausente significa «no se sabe», no «no disponible». |
+| `count` | número de hits devueltos, no el total del catálogo. |
+| `id` | estable dentro de la cadena; será la clave del carrito futuro. |
+
+Campos que cada cadena sí rellena: `mas` no publica tamaño de venta, así que **no da
+`pricePerUnit`**; `carrefour` no publica stock, así que no da `available`; `mas` no devuelve
+`brand`, `category` ni `image`.
 
 ## Las seis cadenas
 
-| Cadena | Endpoint real | Auth | Rarezas que condicionan el código |
+| Cadena | Endpoint | Auth | Rarezas que condicionan el código |
 |---|---|---|---|
-| `dia` | `GET www.dia.es/api/v1/search-back/search?q=` | ninguna | Trae `price_per_unit` y `measure_unit` (KILO/LITRO) ya calculados. La zona la fija el servidor: la respuesta lleva `cart.postal_code` y **no hay forma verificada de cambiarla**. |
-| `mas` | `POST www.supermercadosmas.com/graphql` | ninguna (carrito de invitado disponible) | `price_range` devuelve 500 y `finalPrice` no existe: **solo** `price.regularPrice.amount`. El carrito usa `itemsV2`, no `items`. Pago con Mollie. |
+| `dia` | `GET www.dia.es/api/v1/search-back/search/reduced?q=&page=0` | ninguna | Es el endpoint de la **app Android**, no el del sitio web (`/search-back/search` devuelve 403 de Akamai). Exige las cabeceras de plataforma de la app (`X-Id-Application-From: 8`, `X-Mob-Platform-From: OneApp-Android`, `order_source: app`, `X-App-Supports-L1-As-L2`, `User-Agent: okhttp/4.12.0`…). Devuelve además `pagination`, `total_items`, `sort` y `suggestions`. La zona la fija el servidor: `cart.postal_code` y **no hay forma verificada de cambiarla**. |
+| `mas` | `POST www.supermercadosmas.com/graphql/` | ninguna (carrito de invitado disponible) | La barra final importa: sin ella, 301 y Go pierde el cuerpo del POST. `final_price` **no existe** en este esquema (pedirlo rompe la consulta); se usa `price.regularPrice.amount`. El carrito expone `itemsV2`, no `items`. Pago con Mollie. |
 | `aldi` | `POST <appid>-dsn.algolia.net/1/indexes/an_prd_es_es_<región>_products2/query` | credenciales search-only en el bundle | La región **es** el índice. Precios distintos por región (pen/can/bal). La ruta Next.js `/_next/data/<buildId>` está bloqueada con 308. |
-| `lidl` | `GET www.lidl.es/q/api/search?q=&locale=es_ES&assortment=ES&version=2.1.0` | ninguna | Sin el parámetro `version` responde **401**; su valor no se valida. Hay productos cuyo precio solo existe para socios Lidl Plus: se dejan sin precio. |
-| `alcampo` | `GET compraonline.alcampo.es/api/webproductpagews/v6/product-pages/search` | `x-csrf-token` de la portada | El GraphQL existe pero su tipo `Product` no lleva nombre ni precio. `/api/*` está tras AWS WAF: pasadas unas peticiones responde `202 challenge` durante minutos. |
-| `carrefour` | `POST supercomparador-i9tw.onrender.com/api/v1/compare-basket` | ninguna | `carrefour.es` está bloqueado por Cloudflare en **todas** sus rutas. El precio es **reportado por Superfudis**, no publicado por Carrefour; así se declara en stderr. |
+| `lidl` | `GET www.lidl.es/q/api/search?q=&locale=es_ES&assortment=ES&version=2.1.0` | ninguna | Sin el parámetro `version` responde **401**; su valor no se valida. Hay productos cuyo único precio es de socio Lidl Plus: se dejan sin precio y se avisa por stderr. |
+| `alcampo` | `GET compraonline.alcampo.es/api/webproductpagews/v6/product-pages/search` | `x-csrf-token` de la portada | Su GraphQL existe pero el tipo `Product` no lleva nombre ni precio. `/api/*` está tras AWS WAF: pasadas unas peticiones responde `202 challenge` durante minutos. |
+| `carrefour` | `POST supercomparador-i9tw.onrender.com/api/v1/compare-basket` | ninguna | `carrefour.es` responde 403 de Cloudflare en todo el catálogo y en sus APIs (solo `robots.txt` y `favicon.ico` pasan la lista blanca). El precio es **reportado por Superfudis**, no publicado por Carrefour: así se declara en stderr. |
 
 ## Decisiones y por qué
 
 - **Un binario por cadena** en lugar de un `--store`: cada tienda tiene su stack, su
-  autenticación y sus rarezas. Lo único compartido es `internal/contract` (el sobre JSON).
-- **Sin dependencias salvo uTLS.** El proyecto era stdlib puro; uTLS entró para pelear el 403
-  de DIA y **no lo desbloqueó** (ver abajo). Queda por su valor de diagnóstico y por el
-  fallback probado.
+  autenticación y sus rarezas. Lo único compartido es `internal/contract`.
+- **Sin dependencias.** El módulo es stdlib puro. Hubo una excepción, `uTLS` con huella de
+  Chrome, para pelear el 403 de DIA: se negoció h2 en 10 de 10 intentos y el borde respondió
+  403 igual. La huella no era la puerta. Lo que la abrió fue **leer el cliente que sí
+  funcionaba** (el APK de la app) y usar su endpoint y sus cabeceras. La dependencia se retiró.
 - **Carrefour vía Superfudis (fuente declarada).** Cloudflare bloquea el catálogo entero y no
   hay endpoint de búsqueda ni dentro del navegador. Se lee la API pública del comparador, con
   su límite real (10 productos, 3 peticiones/minuto) y declarando la procedencia.
-- **DIA: la huella TLS no era la puerta.** Con `uTLS` presentando el ClientHello de Chrome y
-  h2 negociado, `dia.es` siguió respondiendo **403 en 10 de 10 intentos**. El siguiente
-  diagnóstico es comparar la IP de salida, no el fingerprint.
-- **Nada se inventa.** Sin precio publicado → campo ausente. Sin unidad publicada → sin
-  €/unidad. Una cadena que no responde falla con error explícito en vez de devolver vacío.
+- **Nada se inventa, aunque cueste cobertura.** `mas` deducía el tamaño del nombre del
+  producto y llegó a publicar `0,09 €/L` para una bolsa de basura de 30 litros; ese parser se
+  eliminó. `dia` publica `price_per_unit` con unidades que no siempre entiende (`LAVADO`,
+  `100 ML.`); cuando no las entiende, no publica precio unitario. Una cadena que no responde
+  falla con error explícito en vez de devolver vacío.
 
 ## Verificación
 
@@ -111,20 +120,26 @@ go vet ./... && gofmt -l .
 
 Cada paquete tiene su fixture capturado de la API real y tests que afirman la forma exacta
 del JSON y la forma exacta de la petición (método, ruta, cabeceras). Los smokes reales se
-hacen con el binario construido.
+hacen con el binario construido. Tres verificaciones independientes revisaron el proyecto:
+la primera encontró tres defectos en `dia` (frase truncada, `--limit` recortado, códigos de
+salida divergentes), la segunda cinco cadenas completas y siete hallazgos más (unidad sin
+precio unitario, €/L inventados en `mas`, stock afirmado en `carrefour`, y cinco afirmaciones
+falsas de este README).
 
 ## Límites conocidos
 
 | Cadena | Límite |
 |---|---|
-| `dia` | 403 de Akamai desde esta red, de forma intermitente e independiente de las cabeceras. |
+| `dia` | Depende de las cabeceras de la app y de valores sintéticos de dispositivo (`X-Mob-Deviceid`, `X-Retail-Visitor-Id`); si DIA empieza a validarlos, habrá que revisarlos. |
 | `alcampo` | Ventanas de `202 challenge` de AWS WAF tras varias peticiones seguidas. |
 | `carrefour` | Depende de una API de terceros gratuita, con su cuota y su latencia (arranque en frío ~9 s). |
 | `aldi`, `lidl` | Credenciales/parámetros que pueden rotar; fallan con error explícito si eso pasa. |
-| `mas` | `count` no usa el `total_count` de Magento: no hay paginación expuesta al consumidor. |
+| `mas` | Sin €/unidad (no publica tamaño) y sin `brand`/`category`/`image` en la respuesta actual. |
+| todas | Sin carrito ni checkout: fase 2. |
 
 ## Origen
 
 Contrato de datos inspirado en `jgalea/grocery-cli` (MIT) y en `ivorpad/mercadona-cli`, que
 documenta el patrón de cliente HTTP con huella de navegador. Ninguno se importa; `internal/`
-no es importable entre módulos.
+no es importable entre módulos. El análisis estático del APK de DIA está en
+`odd/research/dia-android-api.md`.
