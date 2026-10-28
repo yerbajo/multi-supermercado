@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decisión guiada · multisuper</title>
+<style>
+  :root{
+    --bg:#FBF9F6;
+    --surface:#FFFFFF;
+    --surface-2:#F4F1EC;
+    --line:#DED8CF;
+    --line-strong:#948C80;
+    --ink:#1C1917;
+    --ink-2:#57534E;
+    --ink-3:#6F6A63;
+    --accent:#0B6B57;
+    --accent-soft:#E7F2EE;
+    --warn:#8A5A00;
+    --warn-bg:#FDF3E0;
+    --danger:#9F2A22;
+    --danger-bg:#FBEDEB;
+    --focus:#0B6B57;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --text-xs:0.75rem;
+    --text-sm:0.8125rem;
+    --text-ui:0.875rem;
+    --text-body:1rem;
+    --text-lg:1.125rem;
+    --text-xl:1.5rem;
+    --text-2xl:2rem;
+    --text-3xl:2.75rem;
+    --r-1:6px;
+    --r-2:10px;
+    --r-3:20px;
+    --shadow-border:0 0 0 1px oklch(0 0 0 / 0.06),0 1px 2px -1px oklch(0 0 0 / 0.06),0 2px 4px 0 oklch(0 0 0 / 0.04);
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:var(--sans);font-size:var(--text-body);line-height:1.5;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  }
+  h1,h2,h3{margin:0;line-height:1.15;text-wrap:balance}
+  h1{font-size:var(--text-2xl);letter-spacing:-0.025em}
+  h2{font-size:var(--text-lg);letter-spacing:-0.01em}
+  h3{font-size:var(--text-ui)}
+  p{margin:0}
+  ul,ol{margin:0;padding:0;list-style:none}
+  button{font:inherit;color:inherit}
+  :focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+  .skip{position:absolute;inset-inline-start:-9999px;top:12px;background:var(--ink);color:#fff;padding:10px 16px;border-radius:var(--r-1);font-size:var(--text-ui);font-weight:600;z-index:10}
+  .skip:focus{inset-inline-start:50%;translate:-50% 0}
+  .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+  .topbar{display:flex;align-items:center;gap:16px;max-width:1040px;margin-inline:auto;padding:10px 32px}
+  .brand{display:flex;align-items:center;gap:8px;font-size:var(--text-ui);font-weight:600}
+  .brand svg{display:block;color:var(--accent)}
+  .postal{display:flex;align-items:baseline;gap:8px;margin-inline-start:auto;font-size:var(--text-sm);color:var(--ink-2)}
+  .postal strong{font-size:var(--text-ui);color:var(--ink);font-variant-numeric:tabular-nums}
+  .linkbtn{background:none;border:0;padding:2px;color:var(--accent);font-size:var(--text-sm);font-weight:600;cursor:pointer;text-decoration:underline;text-underline-position:from-font;text-decoration-thickness:from-font}
+
+  main{max-width:1040px;margin-inline:auto;padding:8px 32px 0}
+
+  .hero{padding:0 0 14px;border-block-end:1px solid var(--line)}
+  .hero .lede{max-width:88ch;margin-block-start:6px;color:var(--ink-2);font-size:var(--text-ui);text-wrap:pretty}
+  .hero .q{display:flex;flex-wrap:wrap;gap:8px;margin-block-start:12px}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:var(--text-sm);color:var(--ink-2)}
+  .chip b{color:var(--ink);font-weight:600}
+
+  /* ---- recommendation ---- */
+  .verdict{margin-block-start:16px}
+  .card-best{
+    background:var(--ink);color:#fff;border-radius:var(--r-3);padding:18px 22px;
+    --focus:#8FE3CF;
+    box-shadow:0 12px 32px -12px oklch(0.25 0.02 60 / 0.35),0 0 0 1px oklch(0 0 0 / 0.06);
+  }
+  .card-best h2{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:0.08em;color:#C9C4BD;font-weight:600;display:flex;align-items:center;gap:8px}
+  .card-best h2 svg{color:#8FE3CF;flex:none}
+  .best-top{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-block-start:8px}
+  .best-top .chain-name{font-size:var(--text-3xl);letter-spacing:-0.03em;line-height:1;font-weight:600}
+  .best-top .price{font-size:var(--text-3xl);font-weight:600;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
+  .best-top .price small{font-size:var(--text-base,1rem);font-weight:500;color:#C9C4BD;letter-spacing:0}
+  .best-meta{display:flex;flex-wrap:wrap;gap:6px 18px;margin-block-start:8px;font-size:var(--text-sm);color:#C9C4BD}
+  .best-meta .ok{color:#8FE3CF;font-weight:600}
+  .best-items{margin-block-start:12px;padding-block-start:8px;border-block-start:1px solid #3A3531}
+  .best-items li{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:4px 0;font-size:var(--text-ui)}
+  .best-items .n{color:#E8E4DE}
+  .best-items .p{font-variant-numeric:tabular-nums;color:#fff;font-weight:600;white-space:nowrap}
+  .best-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-block-start:14px}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    min-height:40px;padding:0 18px;border-radius:var(--r-1);border:1px solid transparent;
+    font-size:var(--text-ui);font-weight:600;cursor:pointer;
+  }
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:#0a5b4a}
+  .btn-primary:active{scale:0.96}
+  .btn-quiet{border-color:var(--line);background:var(--surface);color:var(--ink-2)}
+  .btn-quiet:hover{background:var(--surface-2);color:var(--ink)}
+  .card-best .btn-quiet{background:transparent;border-color:#756C63;color:#E8E4DE}
+  .card-best .btn-quiet:hover{background:#2A2622;color:#fff}
+  .best-note{font-size:var(--text-xs);color:#C9C4BD;margin-block-start:8px;line-height:1.5}
+
+  /* ---- ranked list ---- */
+  .others{margin-block-start:18px}
+  .others h2{margin-block-end:4px}
+  .others .sub{font-size:var(--text-sm);color:var(--ink-2);margin-block-end:8px}
+  .rows{display:flex;flex-direction:column;gap:6px}
+  .row{
+    display:grid;grid-template-columns:minmax(0,1fr) 90px 96px 96px;align-items:center;gap:16px;
+    padding:10px 16px;background:var(--surface);border-radius:var(--r-2);
+    box-shadow:var(--shadow-border);
+  }
+  .row .who{display:flex;align-items:center;gap:10px;min-width:0}
+  .row .who > span{display:flex;flex-direction:column;min-width:0}
+  .row .who .nm{font-size:var(--text-ui);font-weight:600}
+  .row .who .st{font-size:var(--text-xs);color:var(--ink-2);margin-block-start:1px}
+  .row .cov{font-size:var(--text-sm);color:var(--ink-2);font-variant-numeric:tabular-nums}
+  .row .val{font-size:var(--text-lg);font-weight:600;font-variant-numeric:tabular-nums;text-align:end}
+  .row .delta{font-size:var(--text-sm);color:var(--ink-2);font-variant-numeric:tabular-nums;text-align:end}
+  .row .val.same{color:var(--ink-2);font-size:var(--text-ui)}
+  .row .end{justify-self:end}
+  .row.is-new{background:var(--accent-soft);box-shadow:0 0 0 1px #C9E2DA}
+  .badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;background:var(--ink);color:#fff;font-size:0.6875rem;font-weight:600;letter-spacing:0.02em}
+  .badge-soft{background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
+  .warnline{display:flex;align-items:flex-start;gap:8px;margin-block-start:6px;font-size:var(--text-xs);color:var(--warn);line-height:1.45}
+  .warnline svg{flex:none;margin-block-start:2px}
+
+  /* ---- unavailable ---- */
+  .down{margin-block-start:18px}
+  .down .sub{font-size:var(--text-sm);color:var(--ink-2);margin-block-end:8px;max-width:96ch}
+  .down ul{display:flex;flex-direction:column;gap:6px}
+  .down li{
+    display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;
+    padding:9px 16px;border-radius:var(--r-2);background:var(--surface-2);
+    border:1px solid var(--line);
+  }
+  .down .who{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+  .down .nm{font-size:var(--text-ui);font-weight:600}
+  .down .why{font-size:var(--text-sm);color:var(--ink-2)}
+  .tag{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:var(--text-xs);font-weight:600;border:1px solid var(--line);color:var(--ink-2);background:var(--surface)}
+  .tag-warn{background:var(--warn-bg);border-color:#EBD9B6;color:var(--warn)}
+  .tag-danger{background:var(--danger-bg);border-color:#EFD3CF;color:var(--danger)}
+
+  /* ---- basket ---- */
+  .basket{margin-block-start:20px;padding-block-end:20px}
+  .basket-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-block-end:4px}
+  .basket-head .meta{font-size:var(--text-sm);color:var(--ink-2);font-variant-numeric:tabular-nums}
+  .basket .sub{font-size:var(--text-sm);color:var(--ink-2);margin-block-end:10px;max-width:96ch}
+  .basket-cols{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
+  .lines{background:var(--surface);border-radius:var(--r-2);box-shadow:var(--shadow-border);overflow:hidden}
+  .lines li{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;padding:10px 16px;border-block-end:1px solid var(--line)}
+  .lines li:last-child{border-block-end:0}
+  .lines .n{display:block;font-size:var(--text-ui);font-weight:600}
+  .lines .s{display:block;font-size:var(--text-xs);color:var(--ink-2);margin-block-start:1px}
+  .stepper{display:flex;align-items:center;gap:2px;background:var(--surface-2);border-radius:var(--r-1);padding:2px}
+  .stepper button{
+    width:32px;height:32px;border-radius:4px;border:0;background:transparent;
+    font-size:var(--text-body);line-height:1;font-weight:600;color:var(--ink);
+    cursor:pointer;display:grid;place-items:center;
+  }
+  .stepper button:hover:enabled{background:var(--surface);color:var(--accent)}
+  .stepper button:active:enabled{scale:0.96}
+  .stepper button:disabled{color:var(--ink-3);cursor:not-allowed}
+  .stepper .q{min-width:26px;text-align:center;font-size:var(--text-ui);font-weight:600;font-variant-numeric:tabular-nums}
+  .addbox{background:var(--surface);border-radius:var(--r-2);box-shadow:var(--shadow-border);padding:14px}
+  .addbox label{display:block;font-size:var(--text-sm);font-weight:600;color:var(--ink-2);margin-block-end:6px}
+  .addbox input{
+    width:100%;height:40px;padding:0 12px;font:inherit;font-size:var(--text-ui);
+    color:var(--ink);border:1px solid var(--line-strong);border-radius:var(--r-1);background:var(--surface);
+  }
+  .addbox input::placeholder{color:var(--ink-3)}
+  .addbox input:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-color:var(--accent)}
+  .addbox .btn{width:100%;margin-block-start:8px}
+  .addbox .fine{margin-block-start:10px;font-size:var(--text-xs);color:var(--ink-2);line-height:1.5}
+
+  footer{max-width:1040px;margin-inline:auto;padding:16px 32px 24px;border-block-start:1px solid var(--line);color:var(--ink-2);font-size:var(--text-xs);line-height:1.6}
+  footer p{max-width:100ch}
+
+  @media (max-width:900px){
+    .basket-cols{grid-template-columns:minmax(0,1fr)}
+    .row{grid-template-columns:minmax(0,1fr) auto;row-gap:4px}
+    .row .cov{grid-column:1}
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .btn{transition-property:background-color,box-shadow,border-color;transition-duration:150ms;transition-timing-function:ease-out}
+    .stepper button{transition-property:background-color,color;transition-duration:150ms;transition-timing-function:ease-out}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .btn:active,.stepper button:active:enabled{scale:none}
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Ir a la decisión</a>
+
+<header class="topbar">
+  <p class="brand">
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M3 6.5h14l-1.4 8.2a1.6 1.6 0 0 1-1.6 1.3H6a1.6 1.6 0 0 1-1.6-1.3L3 6.5Z" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M7.2 6.4a2.8 2.8 0 0 1 5.6 0" stroke="currentColor" stroke-width="1.6"/>
+    </svg>
+    multisuper
+  </p>
+  <p class="postal">Compras en <strong>28041</strong> Usera, Madrid <button class="linkbtn" type="button">Cambiar código postal</button></p>
+</header>
+
+<main id="main">
+  <section class="hero" aria-labelledby="t">
+    <div>
+      <h1 id="t">Dónde te sale mejor esta cesta</h1>
+      <p class="lede">Tres artículos, seis cadenas de tu zona: primero la respuesta, y el detalle solo si lo pides.</p>
+    </div>
+    <ul class="q">
+      <li class="chip"><b>3</b> artículos</li>
+      <li class="chip"><b>3</b> cadenas con la cesta completa</li>
+      <li class="chip"><b>2</b> cadenas caídas ahora mismo</li>
+    </ul>
+  </section>
+
+  <section class="verdict" aria-labelledby="rec-h">
+    <div class="card-best">
+      <h2 id="rec-h">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true"><path d="M2 7.4 5.4 10.6 12 3.6" stroke="currentColor" stroke-width="2"/></svg>
+        La más barata con los tres artículos
+      </h2>
+      <div class="best-top">
+        <p class="chain-name" id="best-chain">DIA</p>
+        <p class="price"><span id="best-total">4,17 €</span> <small>total</small></p>
+      </div>
+      <p class="best-meta">
+        <span class="ok" id="best-cov">Cesta completa · 3 de 3</span>
+        <span id="best-save">0,21 € menos que MAS</span>
+        <span>Sin envío</span>
+      </p>
+
+      <ul class="best-items" id="best-items" aria-label="Precio de cada artículo en la cadena recomendada">
+        <li><span class="n">Leche entera · Gremlins Dia Láctea 3 × 200 ml</span><span class="p">0,92 €</span></li>
+        <li><span class="n">Pan de molde · El Molino de Dia sin corteza 450 g</span><span class="p">1,05 €</span></li>
+        <li><span class="n">Huevos · extragrandes L/XL 6 ud</span><span class="p">2,20 €</span></li>
+      </ul>
+
+      <div class="best-actions">
+        <button class="btn btn-primary" type="button" id="best-cta">Elegir DIA</button>
+        <button class="btn btn-quiet" type="button" id="toggle-detail" aria-expanded="false" aria-controls="detail">Ver desglose por artículo</button>
+      </div>
+      <div id="detail" hidden style="margin-block-start:14px;padding:12px;border-radius:10px;background:#2A2622;font-size:0.8125rem;color:#E8E4DE;line-height:1.5">
+        Cada precio se confirma contra el catálogo de la tienda elegida. Si un artículo no aparece hoy, esa cadena queda fuera del ranking en vez de sustituirlo por otro.
+      </div>
+      <p class="best-note">Solo DIA tiene cesta de tienda hoy: en las demás, elegir cadena guarda la decisión y abre su web.</p>
+    </div>
+  </section>
+
+  <section class="others" aria-labelledby="others-h">
+    <h2 id="others-h">Las otras cadenas completas</h2>
+    <p class="sub">Ordenadas por total; la diferencia se mide contra la más barata.</p>
+    <ol class="rows" id="rows">
+      <li class="row" data-chain="dia" hidden>
+        <span class="who"><span><span class="nm">DIA</span><span class="st">Ronda de Toledo 12 · ejemplo</span></span></span>
+        <span class="cov">3 de 3</span>
+        <span class="val" id="total-dia">4,17 €</span>
+        <span class="end"><span class="delta" id="delta-dia">la más barata</span></span>
+      </li>
+      <li class="row" data-chain="mas">
+        <span class="who"><span><span class="nm">MAS</span><span class="st">Av. de Córdoba 21 · ejemplo</span></span></span>
+        <span class="cov">3 de 3</span>
+        <span class="val" id="total-mas">4,38 €</span>
+        <span class="end"><span class="delta" id="delta-mas">+0,21 €</span></span>
+        <span class="sr" id="flag-mas"></span>
+      </li>
+      <li class="row" data-chain="aldi">
+        <span class="who"><span><span class="nm">ALDI</span><span class="st">Marcelo Usera 88 · ejemplo</span></span></span>
+        <span class="cov">3 de 3</span>
+        <span class="val" id="total-aldi">4,88 €</span>
+        <span class="end"><span class="delta" id="delta-aldi">+0,71 €</span></span>
+        <span class="sr" id="flag-aldi">Huevos emparejados como «Huevos de chocolate rellenos»: revisa el candidato.</span>
+      </li>
+    </ol>
+    <p class="warnline">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 1.4 11.2 10.6H.8L6 1.4Z" stroke="currentColor" stroke-width="1.4"/><path d="M6 4.8v2.4" stroke="currentColor" stroke-width="1.4"/></svg>
+      <span>En ALDI, «huevos» se emparejó con «Huevos de chocolate rellenos» (2,99 €). El total de ALDI no está confirmado.</span>
+    </p>
+  </section>
+
+  <section class="down" aria-labelledby="down-h">
+    <h2 id="down-h">Sin total hoy</h2>
+    <p class="sub">No compiten en el ranking: una no tiene la cesta completa y dos no respondieron. Las dos últimas se pueden reintentar sin esperar; la comparación sigue con las demás.</p>
+    <ul>
+      <li>
+        <span class="who"><span class="nm">LIDL</span><span class="why">tiene 2 de 3 · le falta la leche entera · Paseo de Extremadura 154 · ejemplo</span></span>
+        <span class="tag">Falta un artículo</span>
+      </li>
+      <li>
+        <span class="who"><span class="nm">ALCAMPO</span><span class="why">no devolvió datos de tu zona ahora mismo</span></span>
+        <span class="tag tag-warn">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="6" r="4.6" stroke="currentColor" stroke-width="1.5"/><path d="M6 3.6v2.8" stroke="currentColor" stroke-width="1.5"/></svg>
+          Sin cuota
+        </span>
+      </li>
+      <li>
+        <span class="who"><span class="nm">CARREFOUR</span><span class="why">el proveedor externo no contestó a tiempo</span></span>
+        <span class="tag tag-danger">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="6" r="4.6" stroke="currentColor" stroke-width="1.5"/><path d="M3.9 3.9l4.2 4.2M8.1 3.9 3.9 8.1" stroke="currentColor" stroke-width="1.5"/></svg>
+          Sin respuesta
+        </span>
+      </li>
+    </ul>
+  </section>
+
+  <section class="basket" aria-labelledby="basket-h">
+    <div class="basket-head">
+      <h2 id="basket-h">Tu cesta</h2>
+      <span class="meta" id="basket-meta">3 líneas · 3 artículos</span>
+    </div>
+    <p class="sub">Cambia las cantidades: los totales se recalculan en céntimos enteros y la cobertura no cambia mientras haya una unidad de cada artículo.</p>
+
+    <div class="basket-cols">
+      <ul class="lines">
+        <li>
+          <span><span class="n">Leche entera</span><span class="s">3 cadenas la tienen · LIDL no</span></span>
+          <span class="stepper">
+            <button type="button" data-line="leche" data-step="-1" aria-label="Quitar una unidad de leche entera" disabled>−</button>
+            <span class="q" id="q-leche">1</span>
+            <button type="button" data-line="leche" data-step="1" aria-label="Añadir una unidad de leche entera">+</button>
+          </span>
+        </li>
+        <li>
+          <span><span class="n">Pan de molde</span><span class="s">Las 3 cadenas completas lo tienen</span></span>
+          <span class="stepper">
+            <button type="button" data-line="pan" data-step="-1" aria-label="Quitar una unidad de pan de molde" disabled>−</button>
+            <span class="q" id="q-pan">1</span>
+            <button type="button" data-line="pan" data-step="1" aria-label="Añadir una unidad de pan de molde">+</button>
+          </span>
+        </li>
+        <li>
+          <span><span class="n">Huevos</span><span class="s">Revisa el candidato de ALDI antes de comparar</span></span>
+          <span class="stepper">
+            <button type="button" data-line="huevos" data-step="-1" aria-label="Quitar una unidad de huevos" disabled>−</button>
+            <span class="q" id="q-huevos">1</span>
+            <button type="button" data-line="huevos" data-step="1" aria-label="Añadir una unidad de huevos">+</button>
+          </span>
+        </li>
+      </ul>
+
+      <div class="addbox">
+        <label for="add">Añadir un artículo</label>
+        <input id="add" name="add" type="search" autocomplete="off" placeholder="por ejemplo, yogur natural">
+        <button class="btn btn-quiet" type="button">Buscar en 6 cadenas</button>
+        <p class="fine">El mismo término se busca en todas las cadenas de 28041. Un artículo sin precio confirmado no entra en ningún total.</p>
+      </div>
+    </div>
+    <p class="sr" role="status" id="live"></p>
+  </section>
+</main>
+
+<footer>
+  <p>Precios y cobertura de una pasada real con leche entera, pan de molde y huevos. Los nombres y direcciones de tienda son un <strong>ejemplo</strong> del paso por código postal. Un total ausente es mejor que un total inventado.</p>
+</footer>
+
+<script>
+  const LINES = [
+    { key: "leche", unit: { dia: 92,  mas: 95,  aldi: 96 },
+      product: { dia: "Leche entera · Gremlins Dia Láctea 3 × 200 ml",
+                 mas: "Leche entera · ACORES brick 1 l",
+                 aldi: "Leche entera" } },
+    { key: "pan", unit: { dia: 105, mas: 163, aldi: 93 },
+      product: { dia: "Pan de molde · El Molino de Dia sin corteza 450 g",
+                 mas: "Pan de molde · ORTIZ 820 g",
+                 aldi: "Pan de molde · 12 semillas y cereales" } },
+    { key: "huevos", unit: { dia: 220, mas: 180, aldi: 299 },
+      product: { dia: "Huevos · extragrandes L/XL 6 ud",
+                 mas: "Huevos · clase L CASA DE CASTRELO 6 ud",
+                 aldi: "Huevos · candidato dudoso, «Huevos de chocolate rellenos»" } }
+  ];
+  const CHAINS = ["dia", "mas", "aldi"];
+  const NAMES = { dia: "DIA", mas: "MAS", aldi: "ALDI" };
+  const qty = { leche: 1, pan: 1, huevos: 1 };
+
+  const money = cents => (cents / 100).toFixed(2).replace(".", ",") + " €";
+
+  function totals(q) {
+    const out = {};
+    for (const chain of CHAINS) {
+      out[chain] = LINES.reduce((sum, line) => sum + line.unit[chain] * q[line.key], 0);
+    }
+    return out;
+  }
+
+  function cheapest(t) {
+    return CHAINS.reduce((best, chain) => (t[chain] < t[best] ? chain : best), CHAINS[0]);
+  }
+
+  const rows = document.getElementById("rows");
+  const live = document.getElementById("live");
+
+  function render(announce) {
+    const t = totals(qty);
+    const best = cheapest(t);
+
+    for (const chain of CHAINS) {
+      const totalEl = document.getElementById("total-" + chain);
+      const deltaEl = document.getElementById("delta-" + chain);
+      if (!totalEl) continue;
+      totalEl.textContent = money(t[chain]);
+      const diff = t[chain] - t[best];
+      deltaEl.textContent = diff === 0 ? "la más barata" : "+" + money(diff);
+    }
+
+    document.getElementById("best-chain").textContent = NAMES[best];
+    document.getElementById("best-total").textContent = money(t[best]);
+    document.getElementById("best-cta").textContent = "Elegir " + NAMES[best];
+
+    const rival = CHAINS.filter(c => c !== best).reduce((a, b) => (t[a] < t[b] ? a : b));
+    const saveEl = document.getElementById("best-save");
+    saveEl.textContent = money(t[rival] - t[best]) + " menos que " + NAMES[rival];
+
+    document.getElementById("best-items").innerHTML = LINES.map(line =>
+      '<li><span class="n">' + line.product[best] + "</span>" +
+      '<span class="p">' + money(line.unit[best] * qty[line.key]) + "</span></li>"
+    ).join("");
+
+    // keep the visible order equal to the ranking, and show only the chains that are not the headline
+    for (const chain of CHAINS) {
+      const row = rows.querySelector('[data-chain="' + chain + '"]');
+      if (row) row.hidden = chain === best;
+    }
+    CHAINS.slice()
+      .filter(c => c !== best)
+      .sort((a, b) => t[a] - t[b])
+      .forEach(chain => {
+        const row = rows.querySelector('[data-chain="' + chain + '"]');
+        if (row) rows.appendChild(row);
+      });
+
+    let units = 0;
+    for (const key in qty) units += qty[key];
+    document.getElementById("basket-meta").textContent = "3 líneas · " + units + " artículos";
+
+    if (announce) {
+      live.textContent = "Total en " + NAMES[best] + ": " + money(t[best]) + ". El ranking se ha vuelto a ordenar.";
+    }
+  }
+
+  for (const btn of document.querySelectorAll(".stepper button")) {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.line;
+      const step = Number(btn.dataset.step);
+      qty[key] = Math.min(5, Math.max(1, qty[key] + step));
+      document.getElementById("q-" + key).textContent = qty[key];
+      const minus = document.querySelector('[data-line="' + key + '"][data-step="-1"]');
+      const plus = document.querySelector('[data-line="' + key + '"][data-step="1"]');
+      minus.disabled = qty[key] <= 1;
+      plus.disabled = qty[key] >= 5;
+      render(true);
+    });
+  }
+
+  const detailBtn = document.getElementById("toggle-detail");
+  const detail = document.getElementById("detail");
+  detailBtn.addEventListener("click", () => {
+    const open = detail.hasAttribute("hidden");
+    if (open) detail.removeAttribute("hidden"); else detail.setAttribute("hidden", "");
+    detailBtn.setAttribute("aria-expanded", String(open));
+    detailBtn.textContent = open ? "Ocultar desglose" : "Ver desglose por artículo";
+  });
+
+  render(false);
+</script>
+</body>
+</html>

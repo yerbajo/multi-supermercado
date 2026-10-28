@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparador denso · multisuper</title>
+<style>
+  :root{
+    --bg:#FBF9F6;
+    --surface:#FFFFFF;
+    --surface-2:#F4F1EC;
+    --line:#DED8CF;
+    --line-strong:#948C80;
+    --ink:#1C1917;
+    --ink-2:#57534E;
+    --ink-3:#6F6A63;
+    --accent:#0B6B57;
+    --accent-soft:#E7F2EE;
+    --warn:#8A5A00;
+    --warn-bg:#FDF3E0;
+    --danger:#9F2A22;
+    --danger-bg:#FBEDEB;
+    --focus:#0B6B57;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --text-xs:0.75rem;
+    --text-sm:0.8125rem;
+    --text-ui:0.875rem;
+    --text-body:1rem;
+    --text-lg:1.125rem;
+    --text-xl:1.5rem;
+    --text-2xl:2rem;
+    --r-1:6px;
+    --r-2:10px;
+    --r-3:14px;
+    --shadow-border:0 0 0 1px oklch(0 0 0 / 0.06),0 1px 2px -1px oklch(0 0 0 / 0.06),0 2px 4px 0 oklch(0 0 0 / 0.04);
+  }
+  *{box-sizing:border-box}
+  html{font-size:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    font-size:var(--text-body);
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+  }
+  h1,h2,h3{margin:0;line-height:1.2;text-wrap:balance}
+  h1{font-size:var(--text-2xl);letter-spacing:-0.02em}
+  h2{font-size:var(--text-lg)}
+  p{margin:0}
+  a{color:var(--accent);text-underline-position:from-font;text-decoration-thickness:from-font}
+  a:hover{text-decoration-thickness:2px}
+  button{font:inherit;color:inherit}
+  :focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+
+  .skip{
+    position:absolute;inset-inline-start:-9999px;top:12px;
+    background:var(--ink);color:#fff;padding:10px 16px;border-radius:var(--r-1);
+    font-size:var(--text-ui);font-weight:600;z-index:10;
+  }
+  .skip:focus{inset-inline-start:24px}
+
+  .sr{
+    position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+    overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;
+  }
+
+  /* ---- top bar ---- */
+  .topbar{
+    display:flex;align-items:center;gap:24px;
+    padding:10px 32px;border-block-end:1px solid var(--line);
+    background:var(--surface);
+  }
+  .brand{
+    display:flex;align-items:center;gap:8px;
+    font-size:var(--text-ui);font-weight:600;letter-spacing:-0.01em;
+  }
+  .brand svg{display:block;color:var(--accent)}
+  .postal{
+    display:flex;align-items:center;gap:10px;
+    margin-inline-start:auto;
+    padding:6px 6px 6px 12px;
+    background:var(--surface-2);border-radius:var(--r-2);
+    border:1px solid var(--line);
+  }
+  .postal .k{font-size:var(--text-xs);color:var(--ink-2);text-transform:uppercase;letter-spacing:0.06em}
+  .postal .v{font-size:var(--text-ui);font-weight:600;font-variant-numeric:tabular-nums}
+  .postal .area{font-size:var(--text-sm);color:var(--ink-2)}
+  .topnote{font-size:var(--text-sm);color:var(--ink-2)}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    min-height:36px;padding:0 14px;border-radius:var(--r-1);
+    border:1px solid transparent;background:transparent;
+    font-size:var(--text-ui);font-weight:600;cursor:pointer;
+  }
+  .btn-quiet{border-color:var(--line);background:var(--surface);color:var(--ink-2)}
+  .btn-quiet:hover{background:var(--surface-2);color:var(--ink)}
+  .btn-primary{background:var(--accent);color:#fff;min-height:40px;padding:0 18px}
+  .btn-primary:hover{background:#0a5b4a}
+  .btn-primary:active{scale:0.96}
+
+  /* ---- page head ---- */
+  main{max-width:1440px;margin-inline:auto;padding:24px 32px 0}
+  .head{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;margin-block-end:20px}
+  .head .lede{max-width:62ch;color:var(--ink-2);font-size:var(--text-ui);line-height:1.5;margin-block-start:6px;text-wrap:pretty}
+  .head .counts{display:flex;gap:24px;text-align:end}
+  .head .counts div{display:flex;flex-direction:column;gap:2px}
+  .head .counts dt{font-size:var(--text-xs);color:var(--ink-2)}
+  .head .counts dd{margin:0;font-size:var(--text-lg);font-weight:600;font-variant-numeric:tabular-nums}
+
+  /* ---- search ---- */
+  .searchrow{display:flex;align-items:flex-end;gap:12px;margin-block-end:20px}
+  .field{display:flex;flex-direction:column;gap:6px;flex:1 1 auto;max-width:520px}
+  .field label{font-size:var(--text-sm);font-weight:600;color:var(--ink-2)}
+  .field input{
+    height:44px;padding:0 14px;font-family:inherit;font-size:var(--text-body);
+    color:var(--ink);background:var(--surface);
+    border:1px solid var(--line-strong);border-radius:var(--r-1);
+  }
+  .field input::placeholder{color:var(--ink-3)}
+  .field input:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-color:var(--accent)}
+  .hint{font-size:var(--text-sm);color:var(--ink-2);padding-block-end:11px}
+
+  /* ---- layout ---- */
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 344px;gap:24px;align-items:start}
+  .board{
+    background:var(--surface);box-shadow:var(--shadow-border);
+    border-radius:var(--r-3);padding:16px;min-width:0;
+  }
+  .board > h2{margin-block-end:4px}
+  .board > .sub{margin:0 0 12px;font-size:var(--text-sm);color:var(--ink-2)}
+
+  .tablewrap{overflow-x:auto;border-radius:var(--r-2)}
+  table{border-collapse:collapse;width:100%;table-layout:fixed;font-size:var(--text-sm)}
+  caption{text-align:start;padding-block-end:12px}
+  th,td{padding:8px;text-align:start;vertical-align:top}
+  col.item{width:19%}
+  col.chain{width:13.5%}
+  thead th{
+    position:sticky;top:0;background:var(--surface);
+    border-block-end:1px solid var(--line);
+    padding-block-end:10px;
+  }
+  thead th:first-child{font-size:var(--text-xs);color:var(--ink-2);text-transform:uppercase;letter-spacing:0.06em;font-weight:600;padding-block-start:14px}
+  .chain{display:block;font-size:var(--text-ui);font-weight:600;letter-spacing:-0.01em}
+  .chain-store{display:block;font-size:var(--text-xs);color:var(--ink-2);line-height:1.35;margin-block-start:2px}
+  .chain-store .ej{
+    display:inline-block;margin-inline-start:4px;padding:0 4px;border-radius:3px;
+    border:1px solid var(--line);background:var(--surface-2);
+    font-size:0.6875rem;color:var(--ink-2);text-transform:uppercase;letter-spacing:0.04em;
+  }
+  tbody th{border-block-end:1px solid var(--line);font-weight:400}
+  tbody th .item{display:block;font-size:var(--text-ui);font-weight:600}
+  tbody th .qty{display:block;font-size:var(--text-xs);color:var(--ink-2);font-variant-numeric:tabular-nums}
+  tbody td{border-block-end:1px solid var(--line);font-variant-numeric:tabular-nums}
+  tbody tr:hover td,tbody tr:hover th{background:#FCFAF7}
+  .num{font-size:var(--text-ui);font-weight:600;white-space:nowrap}
+  .dash{color:var(--ink-3)}
+  .miss{color:var(--ink-2);white-space:nowrap}
+  .miss .x{font-weight:700;color:var(--ink-2);margin-inline-end:4px}
+  .flag{display:block;font-size:var(--text-xs);color:var(--warn);margin-block-start:2px}
+  tbody td.nodata{
+    color:var(--ink-2);font-size:var(--text-xs);line-height:1.4;
+    background:repeating-linear-gradient(135deg,transparent 0 6px,#F7F4EF 6px 12px);
+  }
+
+  tfoot th,tfoot td{border-block-end:1px solid var(--line);background:#FDFCFA}
+  tfoot tr:last-child th,tfoot tr:last-child td{border-block-end:0}
+  .total th{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-2);font-weight:600;padding-block-start:14px}
+  .total td{font-size:var(--text-lg);font-weight:600;padding-block-start:14px}
+  .total td.best{color:var(--ink)}
+  .pill{
+    display:inline-block;margin-inline-start:6px;vertical-align:2px;
+    padding:2px 7px;border-radius:999px;background:var(--ink);color:#fff;
+    font-size:0.6875rem;font-weight:600;letter-spacing:0.02em;white-space:nowrap;
+  }
+  .cov th,.state th{font-size:var(--text-xs);text-transform:uppercase;letter-spacing:0.06em;color:var(--ink-2);font-weight:600}
+  .cov td{font-size:var(--text-sm);font-variant-numeric:tabular-nums}
+  .tag{
+    display:inline-flex;align-items:center;gap:4px;
+    padding:2px 6px;border-radius:999px;font-size:0.6875rem;font-weight:600;
+    border:1px solid var(--line);color:var(--ink-2);background:var(--surface-2);
+  }
+  .tag svg{flex:none}
+  .state td{line-height:1.35}
+  .tag svg{flex:none}
+  .tag-warn{background:var(--warn-bg);border-color:#EBD9B6;color:var(--warn)}
+  .tag-danger{background:var(--danger-bg);border-color:#EFD3CF;color:var(--danger)}
+  .tag-ok{background:var(--accent-soft);border-color:#C9E2DA;color:#0A5B4A}
+
+  .legend{
+    display:flex;flex-wrap:wrap;gap:6px 20px;
+    margin-block-start:12px;padding-block-start:12px;border-block-start:1px solid var(--line);
+    font-size:var(--text-xs);color:var(--ink-2);
+  }
+  .legend b{font-weight:600;color:var(--ink-2)}
+
+  .notes{margin-block-start:14px}
+  .notes h3{font-size:var(--text-ui);margin-block-end:8px}
+  .notes .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .notes p{font-size:var(--text-xs);line-height:1.45;text-wrap:pretty}
+  .notes .row{padding:10px 12px;border-radius:var(--r-2);background:var(--warn-bg);border:1px solid #EBD9B6}
+  .notes .row.quiet{background:var(--surface-2);border-color:var(--line)}
+  .notes .row p{color:#6B4600}
+  .notes .row.quiet p{color:var(--ink-2)}
+  .notes .row strong{display:block;color:var(--ink);font-size:var(--text-sm);margin-block-end:3px;line-height:1.35}
+
+  /* ---- basket panel ---- */
+  .basket{
+    background:var(--surface);box-shadow:var(--shadow-border);
+    border-radius:var(--r-3);padding:16px;
+    position:sticky;top:16px;
+  }
+  .basket-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-block-end:12px}
+  .basket-head .meta{font-size:var(--text-xs);color:var(--ink-2);font-variant-numeric:tabular-nums}
+  .lines{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  .lines li{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:8px 0;border-block-end:1px solid var(--line)}
+  .lines li:last-child{border-block-end:0}
+  .lines .n{font-size:var(--text-ui);font-weight:600;display:block}
+  .lines .s{font-size:var(--text-xs);color:var(--ink-2);display:block;margin-block-start:1px}
+  .lines .q{font-size:var(--text-ui);font-variant-numeric:tabular-nums;color:var(--ink-2)}
+  .totals{list-style:none;margin:8px 0 0;padding:12px 0 0;border-block-start:1px solid var(--line)}
+  .totals li{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:5px 0;font-size:var(--text-ui)}
+  .totals .c{display:flex;align-items:baseline;gap:8px}
+  .totals .v{font-weight:600;font-variant-numeric:tabular-nums}
+  .totals .v.best{font-size:var(--text-lg)}
+  .totals .note{font-size:var(--text-xs);color:var(--ink-2)}
+  .totals .out{color:var(--ink-2)}
+  .basket .actions{display:flex;flex-direction:column;gap:8px;margin-block-start:14px}
+  .basket .actions .btn-primary{width:100%}
+  .basket .fine{margin-block-start:10px;font-size:var(--text-xs);color:var(--ink-2);line-height:1.45}
+  .basket .fine a{color:var(--accent)}
+
+  footer{margin-block-start:24px;padding:16px 32px 24px;border-block-start:1px solid var(--line);color:var(--ink-2);font-size:var(--text-xs);line-height:1.6}
+  footer p{max-width:100ch}
+  footer .src{margin-block-start:4px}
+
+  @media (max-width:1180px){
+    .layout{grid-template-columns:minmax(0,1fr)}
+    .basket{position:static}
+  }
+  @media (prefers-reduced-motion: no-preference){
+    .btn{transition-property:background-color,box-shadow,border-color;transition-duration:150ms;transition-timing-function:ease-out}
+    .lines li{transition-property:background-color;transition-duration:150ms}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .btn:active{scale:none}
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Ir al comparador</a>
+
+<header class="topbar">
+  <p class="brand">
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M3 6.5h14l-1.4 8.2a1.6 1.6 0 0 1-1.6 1.3H6a1.6 1.6 0 0 1-1.6-1.3L3 6.5Z" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M7.2 6.4a2.8 2.8 0 0 1 5.6 0" stroke="currentColor" stroke-width="1.6"/>
+    </svg>
+    multisuper
+  </p>
+  <div class="postal">
+    <span class="k">Código postal</span>
+    <strong class="v">28041</strong>
+    <span class="area">Usera, Madrid</span>
+    <button class="btn btn-quiet" type="button">Cambiar</button>
+  </div>
+  <p class="topnote">Precios leídos en esta sesión</p>
+</header>
+
+<main id="main">
+  <div class="head">
+    <div>
+      <h1>Comparador de tu cesta</h1>
+      <p class="lede">Leche entera, pan de molde y huevos. Cada columna es una cadena de tu zona: el precio de cada artículo, el total de la cesta y lo que le falta en cada una.</p>
+    </div>
+    <dl class="counts">
+      <div><dt>Artículos</dt><dd>3</dd></div>
+      <div><dt>Cestas completas</dt><dd>3 de 6</dd></div>
+      <div><dt>Ahorro máximo</dt><dd>0,71 €</dd></div>
+    </dl>
+  </div>
+
+  <section class="searchrow" aria-label="Añadir un artículo a la cesta">
+    <div class="field">
+      <label for="q">Buscar un artículo</label>
+      <input id="q" name="q" type="search" autocomplete="off" placeholder="por ejemplo, yogur natural" value="">
+    </div>
+    <button class="btn btn-primary" type="button">Buscar en 6 cadenas</button>
+    <p class="hint">Se compara el mismo término en todas las cadenas de 28041.</p>
+  </section>
+
+  <div class="layout">
+    <section class="board" aria-labelledby="tabla-h">
+      <h2 id="tabla-h">Precio por artículo y cadena</h2>
+      <p class="sub">Total en céntimos enteros, sin envío. El emparejamiento puede ser una propuesta: revisa las filas marcadas.</p>
+
+      <div class="tablewrap" role="region" aria-labelledby="tabla-h" tabindex="0">
+        <table>
+          <caption class="sr">Precio de cada artículo de la cesta en las seis cadenas y total por cadena</caption>
+          <colgroup>
+            <col class="item">
+            <col class="chain"><col class="chain"><col class="chain"><col class="chain"><col class="chain"><col class="chain">
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">Artículo</th>
+              <th scope="col"><span class="chain">DIA</span><span class="chain-store">Ronda de Toledo 12 <span class="ej">ejemplo</span></span></th>
+              <th scope="col"><span class="chain">MAS</span><span class="chain-store">Av. de Córdoba 21 <span class="ej">ejemplo</span></span></th>
+              <th scope="col"><span class="chain">ALDI</span><span class="chain-store">Marcelo Usera 88 <span class="ej">ejemplo</span></span></th>
+              <th scope="col"><span class="chain">LIDL</span><span class="chain-store">Paseo de Extremadura 154 <span class="ej">ejemplo</span></span></th>
+              <th scope="col"><span class="chain">ALCAMPO</span><span class="chain-store">Sin tienda fijada</span></th>
+              <th scope="col"><span class="chain">CARREFOUR</span><span class="chain-store">Sin tienda fijada</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row"><span class="item">Leche entera</span><span class="qty">×1</span></th>
+              <td class="num">0,92 €</td>
+              <td class="num">0,95 €</td>
+              <td class="num">0,96 €</td>
+              <td class="miss"><span class="x" aria-hidden="true">✕</span>falta</td>
+              <td class="nodata" rowspan="3">Sin datos de esta cadena. No se completa a ojo.</td>
+              <td class="nodata" rowspan="3">Sin datos de esta cadena. No se completa a ojo.</td>
+            </tr>
+            <tr>
+              <th scope="row"><span class="item">Pan de molde</span><span class="qty">×1</span></th>
+              <td class="num">1,05 €</td>
+              <td class="num">1,63 €</td>
+              <td class="num">0,93 €</td>
+              <td class="dash">sin dato</td>
+            </tr>
+            <tr>
+              <th scope="row"><span class="item">Huevos</span><span class="qty">×1</span></th>
+              <td class="num">2,20 €</td>
+              <td class="num">1,80 €</td>
+              <td class="num">2,99 €<span class="flag">candidato dudoso</span></td>
+              <td class="dash">sin dato</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr class="total">
+              <th scope="row">Total de la cesta</th>
+              <td class="best">4,17 €<span class="pill">más barata</span></td>
+              <td>4,38 €</td>
+              <td>4,88 €</td>
+              <td class="dash">—</td>
+              <td class="dash">—</td>
+              <td class="dash">—</td>
+            </tr>
+            <tr class="cov">
+              <th scope="row">Cobertura</th>
+              <td>3 de 3</td>
+              <td>3 de 3</td>
+              <td>3 de 3</td>
+              <td>2 de 3</td>
+              <td>sin datos</td>
+              <td>sin datos</td>
+            </tr>
+            <tr class="state">
+              <th scope="row">Estado</th>
+              <td><span class="tag tag-ok"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 6.4 4.6 9 10 3.2" stroke="currentColor" stroke-width="1.8"/></svg>Cesta completa</span></td>
+              <td><span class="tag tag-ok"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 6.4 4.6 9 10 3.2" stroke="currentColor" stroke-width="1.8"/></svg>Cesta completa</span></td>
+              <td><span class="tag tag-warn"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 1.6 11 10.4H1L6 1.6Z" stroke="currentColor" stroke-width="1.5"/><path d="M6 4.9v2.3" stroke="currentColor" stroke-width="1.5"/></svg>Revisar huevos</span></td>
+              <td><span class="tag">Falta leche</span></td>
+              <td><span class="tag tag-warn"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="6" r="4.6" stroke="currentColor" stroke-width="1.5"/><path d="M6 3.6v2.8" stroke="currentColor" stroke-width="1.5"/></svg>Sin cuota</span><span class="flag" style="color:var(--warn)">reintentable</span></td>
+              <td><span class="tag tag-danger"><svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="6" r="4.6" stroke="currentColor" stroke-width="1.5"/><path d="M3.9 3.9l4.2 4.2M8.1 3.9 3.9 8.1" stroke="currentColor" stroke-width="1.5"/></svg>Sin respuesta</span><span class="flag" style="color:var(--danger)">reintentable</span></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div class="legend">
+        <span><b>falta</b> · la cadena no tiene ese artículo</span>
+        <span><b>sin dato</b> · no hay precio confirmado; no se supone nada</span>
+        <span><b>cobertura</b> · artículos de la cesta que la cadena tiene</span>
+        <span><b>total</b> · solo si cubre la cesta completa</span>
+      </div>
+
+      <div class="notes">
+        <h3>Dos avisos antes de fiarte del total</h3>
+        <div class="grid">
+          <div class="row">
+            <p><strong>ALDI emparejó «huevos» con «Huevos de chocolate rellenos» (2,99 €).</strong>
+               Con huevos de verdad probablemente adelanta a MAS. Elige el candidato antes de decidir.</p>
+          </div>
+          <div class="row quiet">
+            <p><strong>LIDL no tiene leche entera.</strong>
+               Queda fuera del ranking con 2 de 3: un total parcial no es comparable con uno completo.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="basket" aria-labelledby="cesta-h">
+      <div class="basket-head">
+        <h2 id="cesta-h">Tu cesta</h2>
+        <span class="meta">3 líneas · 3 artículos</span>
+      </div>
+
+      <ul class="lines">
+        <li>
+          <span><span class="n">Leche entera</span><span class="s">en DIA: Gremlins Dia Láctea 3 × 200 ml</span></span>
+          <span class="q">×1</span>
+        </li>
+        <li>
+          <span><span class="n">Pan de molde</span><span class="s">en DIA: El Molino de Dia sin corteza 450 g</span></span>
+          <span class="q">×1</span>
+        </li>
+        <li>
+          <span><span class="n">Huevos</span><span class="s">en DIA: extragrandes L/XL 6 ud</span></span>
+          <span class="q">×1</span>
+        </li>
+      </ul>
+
+      <ul class="totals">
+        <li><span class="c">DIA <span class="note">3 de 3</span></span><span class="v best">4,17 €</span></li>
+        <li><span class="c">MAS <span class="note">3 de 3</span></span><span class="v">4,38 €</span></li>
+        <li><span class="c">ALDI <span class="note">3 de 3 · revisar</span></span><span class="v">4,88 €</span></li>
+        <li><span class="c out">LIDL <span class="note">2 de 3</span></span><span class="v out">fuera</span></li>
+        <li><span class="c out">ALCAMPO <span class="note">sin cuota</span></span><span class="v out">—</span></li>
+        <li><span class="c out">CARREFOUR <span class="note">sin respuesta</span></span><span class="v out">—</span></li>
+      </ul>
+
+      <div class="actions">
+        <button class="btn btn-primary" type="button">Llenar la cesta en DIA</button>
+        <button class="btn btn-quiet" type="button">Añadir otro artículo</button>
+      </div>
+      <p class="fine">Solo DIA tiene cesta de tienda hoy. Las demás cadenas se comparan en precio y cobertura. <a href="#tabla-h">Volver a la tabla</a></p>
+    </aside>
+  </div>
+</main>
+
+<footer>
+  <p>Los nombres y direcciones de tienda son un <strong>ejemplo</strong> del paso por código postal: el modelo de datos todavía no publica la tienda de cada cadena. Los precios y la cobertura sí vienen de la pasada real con leche entera, pan de molde y huevos.</p>
+  <p class="src">Un total ausente es mejor que un total inventado. Una cadena caída no cancela a las demás.</p>
+</footer>
+</body>
+</html>

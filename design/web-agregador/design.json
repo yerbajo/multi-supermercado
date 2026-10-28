@@ -1,0 +1,28 @@
+{
+  "title": "Web del agregador: del código postal a la cesta comparada",
+  "brief": "Tres direcciones visuales para la web de multisuper. El flujo que deben expresar: código postal, tienda más cercana de cada cadena, búsqueda de un producto, precio en cada cadena, cesta virtual, total y artículos que faltan en cada cadena, decisión de dónde comprar y, solo en DIA, el llenado de la cesta real. Datos reales de la pasada con leche entera, pan de molde y huevos: DIA 4,17 €, MAS 4,38 €, ALDI 4,88 €, LIDL sin leche entera, ALCAMPO sin cuota y CARREFOUR sin respuesta.",
+  "feature": "odd/tasks/web-agregador.md",
+  "artboards": [
+    {
+      "file": "01-comparador-denso.html",
+      "title": "Comparador denso",
+      "tradeoff": "Tabla comparativa con una columna por cadena y cesta siempre visible: muy escaneable y rica en información, pero menos emocional y más fría para decidir.",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "02-decision-guiada.html",
+      "title": "Decisión guiada",
+      "tradeoff": "Tarjetas por cadena ordenadas por total con la más barata destacada como recomendación: lleva a la decisión y esconde el detalle por defecto (tras un desglose y una cesta editable).",
+      "width": 1440,
+      "height": 1100
+    },
+    {
+      "file": "03-tienda-cercana.html",
+      "title": "Tienda cercana",
+      "tradeoff": "Código postal y tiendas más cercanas primero, con búsqueda y cesta después: encuadre local fuerte y de barrio, pero la comparación completa queda un paso más allá.",
+      "width": 1440,
+      "height": 1100
+    }
+  ]
+}
