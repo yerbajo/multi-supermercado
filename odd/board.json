@@ -1,0 +1,59 @@
+{
+  "groups": [
+    {"name": "Cesta y comparación"},
+    {"name": "Entrega y código postal"},
+    {"name": "Operación"}
+  ],
+  "tasks": [
+    {
+      "title": "Comparar las tres políticas de cero coincidencias con datos reales",
+      "group": "Cesta y comparación",
+      "desc": "Medir, con las seis cadenas y al menos tres consultas, qué devuelve cada política: (a) no mostrar los resultados de cobertura 0, (b) mostrarlos aparte marcados como no relacionados, (c) dejarlos al final de la misma lista. Entregable: una tabla con resultados por cadena y consulta, y una recomendación con su coste."
+    },
+    {
+      "title": "Aplicar la política elegida en el agregador y la web",
+      "group": "Cesta y comparación",
+      "desc": "Implementar la política aprobada en internal/aggregate y, si necesita campo nuevo, en web/. Hecho significa: la cadena que no tiene nada relevante lo dice, no enseña un enjuague bucal como resultado de «leche entera», y las pruebas lo fijan.",
+      "deps": ["Comparar las tres políticas de cero coincidencias con datos reales"]
+    },
+    {
+      "title": "Pedir categories{name} en la consulta GraphQL de MAS",
+      "group": "Cesta y comparación",
+      "desc": "Hoy la consulta de productos de supermercadosmas.com no pide categoría, así que no hay forma de saber si un producto es alimentación. Añadirla a la selección y comprobar que el precio no cambia."
+    },
+    {
+      "title": "Calcular €/unidad en MAS solo en categorías de alimentación",
+      "group": "Cesta y comparación",
+      "desc": "Reintroducir el precio por unidad con puerta de categoría, para no repetir el fallo que publicaba 0,09 €/L para una bolsa de basura de 30 litros. Hecho significa: leche y arroz dan €/kg o €/L, y bazar y limpieza no dan nada.",
+      "deps": ["Pedir categories{name} en la consulta GraphQL de MAS"]
+    },
+    {
+      "title": "Verificar €/unidad en MAS con cuatro productos de control",
+      "group": "Cesta y comparación",
+      "desc": "Con el binario construido: una bolsa de basura de 30 l, un brick de leche de 1 l, un detergente y un paquete de arroz. Los dos primeros deben salir con unidad correcta y los dos que no publican tamaño sin precio unitario.",
+      "deps": ["Calcular €/unidad en MAS solo en categorías de alimentación"]
+    },
+    {
+      "title": "Llamar a /api/cart/dia con una línea real y comparar el total con la CLI",
+      "group": "Entrega y código postal",
+      "desc": "Ejercitar el único camino del producto que solo está probado con stubs. Añadir 504P6 x1 por la API web, leer el total y comprobar que coincide con `dia cart get --json`. Medir si la sesión anónima se crea sola."
+    },
+    {
+      "title": "Vaciar la cesta de DIA desde la web y confirmar que la sesión se olvida",
+      "group": "Entrega y código postal",
+      "desc": "Después de llenarla, vaciarla desde la interfaz y verificar que la siguiente lectura responde «no hay cesta» y que el fichero de sesión se ha olvidado, sin dejar cookies huérfanas.",
+      "deps": ["Llamar a /api/cart/dia con una línea real y comparar el total con la CLI"]
+    },
+    {
+      "title": "Implementar el cambio de código postal en el cliente de DIA",
+      "group": "Entrega y código postal",
+      "desc": "PUT api/v1/common-aggregator/save-shipping-address?new_postal_code=<cp> seguido de POST …/reevaluate-current-cart, con la cabecera session_id que documenta el APK. Hecho significa: se obtiene la lista price_changes{sku_id, old_price, new_price} para un carrito con líneas."
+    },
+    {
+      "title": "Mostrar en la web el diff de precios al cambiar de zona",
+      "group": "Entrega y código postal",
+      "desc": "Tras fijar el código postal, la web debe enseñar qué artículos suben y cuáles bajan, en vez de repintar los precios en silencio. Y dejar de etiquetar la zona como «del servidor (28041)» cuando ya es la del usuario.",
+      "deps": ["Implementar el cambio de código postal en el cliente de DIA"]
+    }
+  ]
+}
