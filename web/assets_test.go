@@ -85,8 +85,7 @@ func TestAccessibilityStatics(t *testing.T) {
 		"live region":     {html, `aria-live="polite"`},
 		"postal label":    {html, `<label for="cp">`},
 		"search label":    {html, `<label for="q">`},
-		"add label":       {html, `<label for="add-term">`},
-		"select labels":   {js, `aria-label="Producto de la línea`},
+		"remove label":    {js, `aria-label="Quitar `},
 		"reduced motion":  {css, "prefers-reduced-motion: reduce"},
 		"visible focus":   {css, ":focus-visible"},
 		"skip link":       {html, `class="skip"`},
@@ -170,9 +169,9 @@ func TestLogosHaveAccessibleNames(t *testing.T) {
 			t.Errorf("the logo builder is missing %s", want)
 		}
 	}
-	// Every rendered chain goes through it: the store cards, the ranking, the recommendation
-	// and the failure-free search heads all call logo().
-	for _, call := range []string{"logo(cap.store)", "logo(r.store)", "logo(best.store)", "logo(chain.store)"} {
+	// Every rendered chain goes through it: the store cards, the search heads, the basket
+	// sections and the comparison rows all call logo().
+	for _, call := range []string{"logo(cap.store)", "logo(r.store)", "logo(store)", "logo(chain.store)"} {
 		if !strings.Contains(js, call) {
 			t.Errorf("app.js never renders a brand mark with %s", call)
 		}
@@ -185,8 +184,8 @@ func TestLogosHaveAccessibleNames(t *testing.T) {
 func TestFailureStatesAreIconAndText(t *testing.T) {
 	js := read(t, "app.js")
 	for what, want := range map[string]string{
-		"complete":      "la más barata",
-		"missing":       "Falta un artículo",
+		"stale pin":     "Sin confirmar",
+		"no basket":     "no resuelve ninguna línea",
 		"no quota":      "sin cuota",
 		"no answer":     "sin respuesta",
 		"failure line":  "cadenas no respondieron",
@@ -447,7 +446,7 @@ func TestBasketIsGroupedByChain(t *testing.T) {
 		"the chain's mark":         "logo(store)",
 		"the chain's name":         "nameOf(store)",
 		"the payload's subtotal":   "money(chain.totalCents)",
-		"the lines it resolves":    "it.resolved[store]",
+		"only its own lines":       "line.store === store",
 		"a stated empty section":   "no resuelve ninguna línea",
 	} {
 		if !strings.Contains(section, want) {
@@ -459,15 +458,15 @@ func TestBasketIsGroupedByChain(t *testing.T) {
 		t.Error("chainSection sums line prices instead of using chains[].totalCents")
 	}
 
-	// A line element is keyed by line *and* chain, so the same line is not deduped across
-	// sections and each section shows the product and the price of its own supermarket.
+	// A line element carries the line and the chain, and a line lives in exactly one
+	// section: the one of the supermarket it was added from (S15).
 	line := fnBody(t, js, "function sectionLine(")
 	for what, want := range map[string]string{
-		"line identity":   `data-line="${esc(line.id)}"`,
+		"line identity":   `data-line="${esc(line.key)}"`,
 		"chain identity":  `data-store="${esc(store)}"`,
-		"its own product": "r.name",
-		"its own price":   "sectionNote(line, store, r)",
-		"the stepper":     "stepperHTML(line, store)",
+		"its own product": "r ? r.name : line.name",
+		"its own price":   "sectionNote(line, r)",
+		"the stepper":     "stepperHTML(line)",
 	} {
 		if !strings.Contains(line, want) {
 			t.Errorf("%s: sectionLine is missing %q", what, want)
@@ -481,37 +480,21 @@ func TestBasketIsGroupedByChain(t *testing.T) {
 	if strings.Contains(note, "r.unitCents *") || strings.Contains(note, "line.quantity *") {
 		t.Error("the line price is recomputed from the unit price")
 	}
-	// Missing and stale lines are not section lines: the chain that cannot serve one simply
-	// does not list it, and the coverage lines and the failure line keep saying so.
+	// Missing and stale lines are not priced section lines: the chain that cannot serve one
+	// does not charge for it, and the line says so in its own section.
 	if strings.Contains(line, "it.missing") || strings.Contains(line, "it.stale") {
 		t.Error("a section lists a line the chain does not resolve")
 	}
 
-	// The per-chain product chooser stays inside the section: a native disclosure, so it is
-	// keyboard-operable, asking for the candidates of that chain only.
-	for what, want := range map[string]string{
-		"disclosure":     `<details class="chooser"`,
-		"summary":        "<summary>Elegir producto en ",
-		"one chain only": "choiceFor(line, store)",
+	// S15: no «Elegir producto en X» inside a section. It existed only to move a line into
+	// another chain, which is exactly the parallel basket the user forbade.
+	for _, gone := range []string{
+		`class="chooser"`, `<details`, "Elegir producto en ", "choiceFor(", "choice-state",
+		"function candidates", "/api/candidates", "candidateItem(", "ensureCandidates(",
 	} {
-		if !strings.Contains(line, want) {
-			t.Errorf("%s: the basket line is missing %q", what, want)
+		if strings.Contains(js, gone) {
+			t.Errorf("app.js still offers a per-chain chooser inside the sections: %q", gone)
 		}
-	}
-	choice := fnBody(t, js, "function choiceFor(")
-	for want, what := range map[string]string{
-		`data-store="${esc(store)}"`:       "the select of one chain",
-		`aria-label="Producto de la línea`: "the select's accessible name",
-	} {
-		if !strings.Contains(choice, want) {
-			t.Errorf("%s is missing %q", what, want)
-		}
-	}
-	if strings.Contains(choice, "chainOrder()") {
-		t.Error("the in-section chooser still renders every chain instead of its own")
-	}
-	if !strings.Contains(js, `select.dataset.line`) {
-		t.Error("the per-chain select is not wired to its line")
 	}
 
 	// A quantity change moves the section's subtotal in place: the payload's cents, never a
@@ -520,7 +503,6 @@ func TestBasketIsGroupedByChain(t *testing.T) {
 	for want, what := range map[string]string{
 		`".bc-sub"`:               "the section subtotal update",
 		"money(chain.totalCents)": "the subtotal from the payload",
-		`".bc-tag"`:               "the coverage tag update",
 	} {
 		if !strings.Contains(sync, want) {
 			t.Errorf("%s is missing %q", what, want)
@@ -537,6 +519,96 @@ func TestBasketIsGroupedByChain(t *testing.T) {
 		if !strings.Contains(panel, want) {
 			t.Errorf("%s is missing %q", what, want)
 		}
+	}
+}
+
+// TestEveryLineIsBoundToItsChain pins S15's first half: the page never sends an automatic
+// line. Every entry carries the store, id and name of the product the shopper added from
+// that chain's own row, so no chain resolves a line it was not given.
+func TestEveryLineIsBoundToItsChain(t *testing.T) {
+	js, html := read(t, "app.js"), read(t, "index.html")
+
+	items := fnBody(t, js, "function basketItems(")
+	for what, want := range map[string]string{
+		"the line id":  "line: line.key",
+		"the chain":    "store: line.store",
+		"the product":  "id: line.id",
+		"the name":     "name: line.name",
+		"the quantity": "quantity: line.quantity",
+	} {
+		if !strings.Contains(items, want) {
+			t.Errorf("%s: basketItems is missing %q", what, want)
+		}
+	}
+	// No automatic entry: no query, and no entry without a store.
+	for _, gone := range []string{"query:", "pins"} {
+		if strings.Contains(items, gone) {
+			t.Errorf("basketItems still sends an automatic entry: %q", gone)
+		}
+	}
+
+	// A product enters the basket only from a search row, which knows its chain; the free
+	// text field that could not know one is gone, not hidden.
+	if !strings.Contains(js, `addLine(pin.dataset.pin, pin.dataset.id, pin.dataset.name)`) {
+		t.Error("the pin button does not add the product with its chain, id and name")
+	}
+	for _, gone := range []string{"add-form", "add-term", "data-add", "Añadir «"} {
+		if strings.Contains(js, gone) || strings.Contains(html, gone) {
+			t.Errorf("the page still offers a chain-less add field: %q", gone)
+		}
+	}
+	// A wrong pin must be removable, or the basket cannot be corrected.
+	if !strings.Contains(js, `data-drop="${esc(line.key)}"`) {
+		t.Error("a basket line has no way out")
+	}
+	if !strings.Contains(js, `closest("[data-drop]")`) {
+		t.Error("the remove control has no listener, so it is a dead button")
+	}
+}
+
+// TestComparisonIsOneBasketPerChain pins S15's second half: no chain holds «the whole
+// basket», so the comparison stops ranking full coverage and prints each chain's own
+// basket — how many of the shopper's items it holds and what it costs.
+func TestComparisonIsOneBasketPerChain(t *testing.T) {
+	js, html := read(t, "app.js"), read(t, "index.html")
+
+	row := fnBody(t, js, "function comparisonRow(")
+	for what, want := range map[string]string{
+		"the chain's mark": "logo(chain.store)",
+		"its item count":   "countOf(lines.length)",
+		"its own total":    "money(chain.totalCents)",
+	} {
+		if !strings.Contains(row, want) {
+			t.Errorf("%s: comparisonRow is missing %q", what, want)
+		}
+	}
+	for _, gone := range []string{"delta", "coverage", "ranking", "is-best"} {
+		if strings.Contains(row, gone) {
+			t.Errorf("a comparison row still ranks baskets against each other: %q", gone)
+		}
+	}
+
+	// The copy that read as a cross-chain ranking is gone from both files.
+	for _, gone := range []string{
+		"la más barata", "cubre las ", "cesta completa", "coverage", "cobertura",
+		"ranking", "is-best", "down-sub", "Sin total hoy",
+	} {
+		if strings.Contains(js, gone) || strings.Contains(html, gone) {
+			t.Errorf("the page still claims a cheapest basket for a basket that spans chains: %q", gone)
+		}
+	}
+
+	// One shape for the count: «2 artículos».
+	for _, want := range []string{"function countOf(", `" artículo"`, `" artículos"`} {
+		if !strings.Contains(js, want) {
+			t.Errorf("the page cannot say how many items one chain's basket holds, missing %q", want)
+		}
+	}
+
+	// A chain that holds none of the shopper's items contributes no row: six empty baskets
+	// would be noise, and a line only ever belongs to its own chain (S15).
+	if !strings.Contains(js, "owned.has(c.store)") {
+		t.Error("the comparison lists chains that hold none of the shopper's items")
 	}
 }
 

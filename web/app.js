@@ -1,7 +1,12 @@
 /* Direction 03 «Tienda cercana», no framework and no external request: the postal code
-   and the store cards come first, then the search, the basket and the comparison.
+   and the store cards come first, then the search and the basket, one section per chain.
    Everything the page knows about a chain comes from /api/caps or from the documents the
-   server returns; nothing here invents a store, a zone or a price. */
+   server returns; nothing here invents a store, a zone or a price.
+
+   S15: a product the shopper adds belongs to the basket of the chain it was added in, and
+   to no other. Every entry this page sends is pinned to its chain, and each section holds
+   only its own lines — there are no parallel baskets and no chain is «the cheapest» for a
+   basket that spans several of them. */
 "use strict";
 
 const CHAIN_NAMES = {
@@ -60,12 +65,9 @@ const state = {
   cp: "",
   caps: null,
   chosen: { dia: true, mas: true, lidl: true },
-  lines: [],          // [{id, quantity, pins: {store: {id, name}}}]
+  lines: [],          // [{key, store, id, name, quantity}]: one product in one chain
   basket: null,
   basketError: null,
-  candidates: null,
-  candidatesStale: true,
-  candidatesLoading: false,
   lastTerm: "",
   searched: null,    // {term, asked}: what the results count is a count of
   refreshTimer: null,
@@ -82,6 +84,11 @@ const money = (cents) => {
   const n = Math.trunc(cents);
   return Math.trunc(n / 100) + "," + String(Math.abs(n % 100)).padStart(2, "0") + " €";
 };
+// How many items one chain's basket holds: the count belongs to that chain, never to a
+// basket that spans several (S15).
+function countOf(n) {
+  return n + (n === 1 ? " artículo" : " artículos");
+}
 const chainOrder = () => (state.caps && state.caps.chains.length
   ? state.caps.chains.map((c) => c.store)
   : Object.keys(CHAIN_NAMES));
@@ -167,8 +174,8 @@ function renderShops() {
   updatePicked();
 }
 
-// The checkbox is the store choice: it moves the counter and takes the chain out of the
-// ranking, which is why the counter reads as a sentence and stays live.
+// The checkbox is the store choice: it moves the counter and strikes that chain's own basket
+// in the comparison, which is why the counter reads as a sentence and stays live.
 $("shops").addEventListener("change", (event) => {
   const box = event.target.closest("input[data-chain]");
   if (!box) return;
@@ -251,12 +258,6 @@ function renderHits(doc, term) {
   const failed = doc.results.filter((r) => r.error).map(failureOf);
   const answered = doc.results.filter((r) => !r.error);
   state.searched = { term: term, asked: doc.results.length };
-  if (answered.length) {
-    const bar = document.createElement("li");
-    bar.className = "hit-add";
-    bar.innerHTML = `<button class="btn btn-quiet btn-small" type="button" data-add="${esc(term)}">Añadir «${esc(term)}» a la cesta</button>`;
-    hits.appendChild(bar);
-  }
   for (const r of answered) hits.appendChild(hitChain(r, term));
   // A chain that did not answer is one compact line at the end, not a block that looks
   // like a result: the same rule the comparison follows.
@@ -288,7 +289,7 @@ function hitRow(store, h, term) {
   return `<li>
       <span class="pname">${esc(h.name)}${h.size ? " · " + esc(h.size) : ""}</span>
       <span class="pprice">${h.price == null ? "sin precio" : euros(h.price)}</span>
-      <button class="btn btn-quiet btn-icon" type="button" data-pin="${esc(store)}" data-id="${esc(h.id)}" data-name="${esc(h.name)}" data-term="${esc(term)}" aria-label="${esc(label)}" title="${esc(label)}">${ICON.basket}</button>
+      <button class="btn btn-quiet btn-icon" type="button" data-pin="${esc(store)}" data-id="${esc(h.id)}" data-name="${esc(h.name)}" aria-label="${esc(label)}" title="${esc(label)}">${ICON.basket}</button>
     </li>`;
 }
 
@@ -367,129 +368,101 @@ $("search-form").addEventListener("submit", (event) => {
 });
 
 $("hits").addEventListener("click", (event) => {
-  const add = event.target.closest("[data-add]");
-  if (add) { addLine(add.dataset.add); return; }
   const more = event.target.closest("[data-more]");
   if (more) { pageMore(more.dataset.more, more); return; }
   const pin = event.target.closest("[data-pin]");
   if (pin) {
-    addLine(pin.dataset.term, { store: pin.dataset.pin, id: pin.dataset.id, name: pin.dataset.name });
+    addLine(pin.dataset.pin, pin.dataset.id, pin.dataset.name);
   }
 });
 
 /* ---------------- basket ---------------- */
 
+// S15: every entry the page sends is the product the shopper picked, bound to the chain it
+// was picked in — {line, store, id, name, quantity}. There is no automatic entry, so no line
+// is resolved in a chain the shopper did not choose it in: no parallel baskets.
 function basketItems() {
-  const items = [];
-  for (const line of state.lines) {
-    items.push({ line: line.id, query: line.id, quantity: line.quantity });
-    for (const store in line.pins) {
-      items.push({ line: line.id, store: store, id: line.pins[store].id, name: line.pins[store].name, quantity: line.quantity });
-    }
-  }
-  return items;
+  return state.lines.map((line) => ({
+    line: line.key, store: line.store, id: line.id, name: line.name, quantity: line.quantity,
+  }));
 }
 
-function addLine(term, pin) {
-  term = String(term || "").trim();
-  if (!term) return;
-  let line = state.lines.find((l) => l.id === term);
-  if (!line) {
-    line = { id: term, quantity: 1, pins: {} };
-    state.lines.push(line);
-  }
-  if (pin) line.pins[pin.store] = { id: pin.id, name: pin.name };
-  state.candidatesStale = true;
-  $("add-status").textContent = pin
-    ? "«" + term + "» con " + nameOf(pin.store) + ": " + pin.name
-    : "«" + term + "» añadido a la cesta.";
+// A line is one product in one chain: the pair is its identity, so adding the same product
+// twice raises its quantity instead of drawing the same row again.
+const lineKey = (store, id) => store + "/" + id;
+
+function addLine(store, id, name) {
+  if (!store || !id || !name) return;
+  const key = lineKey(store, id);
+  const line = state.lines.find((l) => l.key === key);
+  if (line) line.quantity = Math.min(9, line.quantity + 1);
+  else state.lines.push({ key: key, store: store, id: id, name: name, quantity: 1 });
+  $("add-status").textContent = "«" + name + "» en la cesta de " + nameOf(store) + ".";
+  renderLines();
+  refresh(false);
+}
+
+function dropLine(key) {
+  const line = state.lines.find((l) => l.key === key);
+  if (!line) return;
+  state.lines = state.lines.filter((l) => l.key !== key);
+  $("add-status").textContent = "«" + line.name + "» fuera de la cesta de " + nameOf(line.store) + ".";
   renderLines();
   refresh(false);
 }
 
 function basketItem(line) {
   if (!state.basket) return null;
-  return state.basket.items.find((it) => (it.line || it.query) === line.id) || null;
+  return state.basket.items.find((it) => it.line === line.key) || null;
 }
 
-function candidateItem(line) {
-  if (!state.candidates) return null;
-  return state.candidates.items.find((it) => it.line === line.id) || null;
-}
-
-// One chain's chooser: the select that pins that chain's product for the line. It sits
-// inside the chain's own section, so it only ever offers the candidates of that chain.
-function choiceFor(line, store) {
-  const name = nameOf(store);
-  const answer = state.candidates && state.candidates.chains.find((c) => c.store === store);
-  if (answer && answer.error) {
-    return `<div class="choice"><span class="choice-chain">${name}</span>
-      <span class="choice-state">no disponible ahora · <button class="linkbtn" type="button" data-retry="candidates">reintentar</button></span></div>`;
-  }
-  const cand = candidateItem(line);
-  const list = cand && cand.candidates && cand.candidates[store];
-  if (!list) {
-    return `<div class="choice"><span class="choice-chain">${name}</span>
-      <span class="choice-state">${state.candidatesStale ? "pidiendo sus productos…" : "sin candidatos para esta línea"}</span></div>`;
-  }
-  const pin = line.pins[store];
-  const current = pin ? pin.id : "";
-  const options = [`<option value=""${current ? "" : " selected"}>Automático: la mejor coincidencia para «${esc(line.id)}»</option>`]
-    .concat(list.map((c) => `<option value="${esc(c.id)}" data-name="${esc(c.name)}"${c.id === current ? " selected" : ""}>${esc(c.name)} — ${money(c.unitCents)}${c.current ? " (el actual)" : ""}</option>`));
-  return `<label class="choice"><span class="choice-chain">${name}</span>
-      <select data-line="${esc(line.id)}" data-store="${esc(store)}" aria-label="Producto de la línea ${esc(line.id)} en ${name}">${options.join("")}</select></label>`;
-}
-
-// The chain is named on both ends of the quantity control: the same basket line appears in
-// every section, so «+ de leche» alone would be ambiguous from a screen reader (S14).
-function stepperHTML(line, store) {
-  const where = esc(line.id) + " en " + esc(nameOf(store));
+// The chain is named on both ends of the quantity control: «+ de leche» alone would be
+// ambiguous from a screen reader (S14).
+function stepperHTML(line) {
+  const where = esc(line.name) + " en " + esc(nameOf(line.store));
   return `<button type="button" data-step="-1" aria-label="Quitar una unidad de ${where}"${line.quantity <= 1 ? " disabled" : ""}>−</button>
     <span class="q">${line.quantity}</span>
     <button type="button" data-step="1" aria-label="Añadir una unidad de ${where}"${line.quantity >= 9 ? " disabled" : ""}>+</button>`;
 }
 
-// What this chain would put in the basket for this line, in this chain's own words and its
-// own cents: the product it would deliver, the line price it charges and whether the
-// shopper pinned it by hand.
-function sectionNote(line, store, r) {
-  if (!r) return "comparando en " + nameOf(store) + "…";
-  const parts = ["«" + line.id + "»"];
+// What this chain charges for this line, in its own cents: the product it publishes today,
+// the line total and the fact that the shopper chose it by hand. A chosen product that is
+// no longer published says so instead of showing a price (S13).
+function sectionNote(line, r) {
+  if (!r) return state.basket ? "sin confirmar hoy: el producto elegido no está en su catálogo" : "pidiendo el precio…";
+  const parts = [];
   if (line.quantity > 1) parts.push(money(r.unitCents) + "/ud");
   parts.push(money(r.lineCents));
-  if (line.pins[store]) parts.push("elegido a mano");
+  parts.push("elegido a mano");
   return parts.join(" · ");
 }
 
-// One line inside one section. The same basket line is drawn once per chain, each with that
-// chain's product, price and chooser: the keys are line + chain, never line alone.
+// One line inside the section of the chain that owns it, with the way out of the basket:
+// there is no control that moves it into another chain, because that basket would be the
+// parallel one S15 forbids.
 function sectionLine(line, store) {
   const it = basketItem(line);
   const r = it && it.resolved[store];
-  return `<li class="line" data-line="${esc(line.id)}" data-store="${esc(store)}">
+  return `<li class="line" data-line="${esc(line.key)}" data-store="${esc(store)}">
     <div class="line-head">
       <span>
-        <span class="line-name">${esc(r ? r.name : "comparando…")}</span>
-        <span class="line-note">${esc(sectionNote(line, store, r))}</span>
+        <span class="line-name">${esc(r ? r.name : line.name)}</span>
+        <span class="line-note">${esc(sectionNote(line, r))}</span>
       </span>
-      <span class="stepper">${stepperHTML(line, store)}</span>
+      <span class="line-end">
+        <span class="stepper">${stepperHTML(line)}</span>
+        <button class="linkbtn" type="button" data-drop="${esc(line.key)}" aria-label="Quitar ${esc(line.name)} de la cesta">quitar</button>
+      </span>
     </div>
-    <details class="chooser" data-line="${esc(line.id)}" data-store="${esc(store)}">
-      <summary>Elegir producto en ${esc(nameOf(store))}</summary>
-      <div class="choices">${choiceFor(line, store)}</div>
-    </details>
   </li>`;
 }
 
-// The basket, read per supermarket: one section per chain that answered, with its mark, its
-// name and the subtotal the payload already summed. A chain that failed is a compact line
-// instead, and a chain that cannot serve a line simply does not list it (S14).
+// The basket, read per supermarket and owned: a section holds only the lines added from
+// that chain, with its mark, the payload's subtotal and the state of a chosen product that
+// is gone. Nothing is copied into a chain the shopper did not choose (S15).
 function chainSection(chain) {
   const store = chain.store;
-  const lines = state.lines.filter((line) => {
-    const it = basketItem(line);
-    return !it || Boolean(it.resolved[store]);
-  });
+  const lines = state.lines.filter((line) => line.store === store);
   const sub = chain.totalCents == null ? "—" : money(chain.totalCents);
   const li = document.createElement("li");
   li.className = "basket-chain";
@@ -498,7 +471,7 @@ function chainSection(chain) {
     <div class="bc-head">
       ${logo(store)}
       <span class="bc-name">${esc(nameOf(store))}</span>
-      ${chain.coverage ? `<span class="tag bc-tag">${esc(chain.coverage)}</span>` : ""}
+      ${chain.stale && chain.stale.length ? `<span class="tag tag-warn">${ICON.warn}Sin confirmar</span>` : ""}
       <span class="bc-sub">${sub}</span>
     </div>
     <ul class="bc-lines">${lines.map((line) => sectionLine(line, store)).join("")}</ul>
@@ -506,20 +479,21 @@ function chainSection(chain) {
   return li;
 }
 
-// Before the first answer there is nothing to group yet, so the sections are only named:
-// one per chain in the table, with the steppers live and no invented subtotal.
+// One section per chain that holds something: the chains that answered and own at least
+// one line. Before the first answer the sections are only named, with no invented total.
 function sectionsFor() {
-  if (state.basket) return state.basket.chains.filter((c) => !c.error);
-  return chainOrder().map((store) => ({ store: store, totalCents: null, coverage: "" }));
+  const owned = new Set(state.lines.map((line) => line.store));
+  if (state.basket) return state.basket.chains.filter((c) => !c.error && owned.has(c.store));
+  return chainOrder().filter((s) => owned.has(s)).map((store) => ({ store: store, totalCents: null }));
 }
 
 // The panel is rebuilt only when the shape changes — a line added or removed, a chain's
-// answer arriving or failing, the set of sections moving — so a stepper or a select keeps
-// its focus while the prices refresh underneath.
+// answer arriving or failing, the set of sections moving — so a stepper keeps its focus
+// while the prices refresh underneath.
 function linesKey() {
   const per = state.lines.map((line) => {
     const it = basketItem(line);
-    return line.id + ":" + (it ? Object.keys(it.resolved).sort().join("+") : "?");
+    return line.key + ":" + (it ? Object.keys(it.resolved).sort().join("+") : "?");
   }).join("|");
   const failed = state.basket ? state.basket.chains.filter((c) => c.error).map((c) => c.store).join(",") : "?";
   return per + "#" + failed;
@@ -535,11 +509,9 @@ function syncLines() {
     if (!chain) continue;
     const sub = sec.querySelector(".bc-sub");
     if (sub) sub.textContent = chain.totalCents == null ? "—" : money(chain.totalCents);
-    const tag = sec.querySelector(".bc-tag");
-    if (tag && chain.coverage) tag.textContent = chain.coverage;
   }
   for (const el of document.querySelectorAll(".line[data-line]")) {
-    const line = state.lines.find((l) => l.id === el.dataset.line);
+    const line = state.lines.find((l) => l.key === el.dataset.line);
     if (!line) continue;
     const q = el.querySelector(".q");
     if (q) q.textContent = line.quantity;
@@ -549,29 +521,23 @@ function syncLines() {
     const it = basketItem(line);
     const r = it && it.resolved[el.dataset.store];
     const name = el.querySelector(".line-name");
-    if (name) name.textContent = r ? r.name : "comparando…";
+    if (name) name.textContent = r ? r.name : line.name;
     const note = el.querySelector(".line-note");
-    if (note) note.textContent = sectionNote(line, el.dataset.store, r);
+    if (note) note.textContent = sectionNote(line, r);
   }
 }
 
 function renderLines() {
   const list = $("lines");
-  const open = new Set([...document.querySelectorAll("details.chooser[open]")]
-    .map((d) => d.dataset.line + "@" + d.dataset.store));
-  // A rebuild must not drop the keyboard: remember which control of which line had the
+  // A rebuild must not drop the keyboard: remember which stepper of which line had the
   // focus and put it back on the same one.
   const active = document.activeElement && list.contains(document.activeElement) ? document.activeElement : null;
   const box = active && active.closest(".line");
-  const focus = box ? {
-    line: box.dataset.line, store: box.dataset.store,
-    sel: active.matches("summary") ? "summary" : active.matches("select") ? "select"
-      : active.dataset.step ? 'button[data-step="' + active.dataset.step + '"]' : null,
-  } : null;
+  const focus = box && active.dataset.step ? { key: box.dataset.line, step: active.dataset.step } : null;
   list.innerHTML = "";
   renderedKey = linesKey();
   if (!state.lines.length) {
-    list.innerHTML = '<li class="empty">Todavía no hay líneas. Busca un artículo y añádelo.</li>';
+    list.innerHTML = '<li class="empty">Todavía no hay líneas. Busca un artículo y añádelo desde la fila de su cadena.</li>';
     return;
   }
   if (!state.basket) list.innerHTML = '<li class="empty">Comparando tu cesta en las seis cadenas…</li>';
@@ -583,58 +549,24 @@ function renderLines() {
     li.innerHTML = failBody(failed, "basket");
     list.appendChild(li);
   }
-  for (const det of document.querySelectorAll("details.chooser")) {
-    if (open.has(det.dataset.line + "@" + det.dataset.store)) det.open = true;
-  }
-  if (focus && focus.sel) {
-    const line = [...list.querySelectorAll(".line")]
-      .find((l) => l.dataset.line === focus.line && l.dataset.store === focus.store);
-    const target = line && line.querySelector(focus.sel);
+  if (focus) {
+    const line = [...list.querySelectorAll(".line")].find((l) => l.dataset.line === focus.key);
+    const target = line && line.querySelector('button[data-step="' + focus.step + '"]');
     if (target) target.focus();
   }
 }
 
-$("add-form").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const term = $("add-term").value.trim();
-  if (!term) { $("add-status").textContent = "Escribe qué quieres añadir."; $("add-term").focus(); return; }
-  $("add-term").value = "";
-  addLine(term);
-});
-
 $("lines").addEventListener("click", (event) => {
+  const drop = event.target.closest("[data-drop]");
+  if (drop) { dropLine(drop.dataset.drop); return; }
   const btn = event.target.closest("button[data-step]");
   if (!btn) return;
-  const line = state.lines.find((l) => l.id === btn.closest(".line").dataset.line);
+  const line = state.lines.find((l) => l.key === btn.closest(".line").dataset.line);
   if (!line) return;
   line.quantity = Math.min(9, Math.max(1, line.quantity + Number(btn.dataset.step)));
   renderLines();
   refresh(false);
 });
-
-$("lines").addEventListener("change", (event) => {
-  const select = event.target.closest("select[data-store]");
-  if (!select) return;
-  const line = state.lines.find((l) => l.id === select.dataset.line);
-  if (!line) return;
-  const store = select.dataset.store;
-  if (select.value === "") {
-    delete line.pins[store];
-    announce("En " + nameOf(store) + ", «" + line.id + "» vuelve a la mejor coincidencia.");
-  } else {
-    const opt = select.selectedOptions[0];
-    line.pins[store] = { id: select.value, name: opt.dataset.name || select.value };
-    announce("En " + nameOf(store) + ", «" + line.id + "» queda como " + line.pins[store].name + ".");
-  }
-  renderLines();
-  refresh(true);
-});
-
-$("lines").addEventListener("toggle", (event) => {
-  const det = event.target;
-  if (!det.classList || !det.classList.contains("chooser") || !det.open) return;
-  ensureCandidates();
-}, true);
 
 /* ---------------- comparison ---------------- */
 
@@ -658,24 +590,6 @@ async function recalc(fresh) {
     state.basketError = err.message;
   }
   renderComparison();
-}
-
-async function ensureCandidates(fresh) {
-  if (!state.candidatesStale || state.candidatesLoading) return;
-  state.candidatesLoading = true;
-  try {
-    state.candidates = await api("/api/candidates" + (fresh ? "?fresh=1" : ""), { items: basketItems() });
-    state.candidatesStale = false;
-  } catch (err) {
-    $("add-status").textContent = "No se pudieron pedir los productos por cadena: " + err.message;
-  } finally {
-    state.candidatesLoading = false;
-    for (const det of document.querySelectorAll("details.chooser[open]")) {
-      const line = state.lines.find((l) => l.id === det.dataset.line);
-      const box = det.querySelector(".choices");
-      if (line && box) box.innerHTML = choiceFor(line, det.dataset.store);
-    }
-  }
 }
 
 /* ---------------- failures and placeholders ---------------- */
@@ -724,32 +638,47 @@ function compEmpty(text, retry) {
   $("comp-empty-retry").hidden = !retry;
 }
 
+// S15: the chains that hold at least one of the shopper's lines, each with its own basket.
+// Two baskets of different products are not comparable, so nothing here is ranked and no
+// chain is called the cheapest for goods it was never given.
+function chainBaskets() {
+  const owned = new Set(state.lines.map((line) => line.store));
+  return state.basket.chains
+    .filter((c) => !c.error && owned.has(c.store))
+    .map((c) => ({ chain: c, lines: state.lines.filter((line) => line.store === c.store) }));
+}
+
+// One chain's own basket: its mark, how many items it holds and what it costs. No position
+// and no delta against another chain — those would rank baskets that hold different goods.
+function comparisonRow(chain, lines) {
+  const discarded = isDiscarded(chain.store);
+  const li = document.createElement("li");
+  li.className = "row" + (discarded ? " is-out" : "");
+  li.dataset.chain = chain.store;
+  const why = discarded ? " · tienda descartada" : chain.stale.length ? " · sin confirmar" : "";
+  li.innerHTML = `<span class="who">${logo(chain.store)}<span class="st">${esc(countOf(lines.length))}${esc(why)}</span></span>
+      <span class="val">${chain.totalCents == null ? "—" : money(chain.totalCents)}</span>`;
+  return li;
+}
+
 function renderComparison() {
   const rank = $("rank");
-  const down = $("down");
-  const rec = $("rec");
   rank.innerHTML = "";
-  down.innerHTML = "";
-  $("comp-note").hidden = true;
   $("comp-fail").hidden = true;
   $("comp-fail").innerHTML = "";
   $("comp-empty").hidden = true;
-  $("down-h").hidden = true;
-  $("down-sub").hidden = true;
 
   // The basket panel follows the same answer: the sections appear when the chains answer,
-  // and a price moves in place without stealing the focus of a stepper or a select.
+  // and a price moves in place without stealing the focus of a stepper.
   if (linesKey() !== renderedKey) renderLines();
   else syncLines();
 
   if (!state.lines.length) {
     $("comp-meta").textContent = "Sin cesta todavía";
-    rec.hidden = true;
-    compEmpty("Todavía no hay cesta: añade un artículo y las seis cadenas compiten por tu compra.", false);
+    compEmpty("Todavía no hay cesta: busca un producto y añádelo desde la fila de la cadena que lo vende.", false);
     return;
   }
   if (!state.basket) {
-    rec.hidden = true;
     $("comp-meta").textContent = "Comparando…";
     if (state.basketError) {
       compEmpty("No se pudo comparar: " + state.basketError + ". Reintenta: la comparación no inventa precios.", true);
@@ -765,102 +694,41 @@ function renderComparison() {
   const failed = basket.chains.filter((c) => c.error).map(failureOf);
   const answered = basket.chains.filter((c) => !c.error);
   const units = state.lines.reduce((n, l) => n + l.quantity, 0);
-  const complete = basket.ranking.length;
-  $("comp-meta").textContent = state.lines.length + (state.lines.length === 1 ? " línea · " : " líneas · ") +
-    units + (units === 1 ? " unidad · " : " unidades · ") +
-    complete + (complete === 1 ? " cadena completa" : " cadenas completas") + " · " +
+  const baskets = chainBaskets();
+  $("comp-meta").textContent = countOf(state.lines.length) + " · " + units +
+    (units === 1 ? " unidad · " : " unidades · ") + baskets.length +
+    (baskets.length === 1 ? " cesta de supermercado · " : " cestas de supermercado · ") +
     failed.length + " sin respuesta";
 
   // No chain answered at all: the comparison is empty for a stated reason, with a retry,
   // instead of a blank panel that looks broken.
   if (!answered.length) {
-    rec.hidden = true;
     compEmpty("Hoy no respondió ninguna cadena: " + failPlain(failed) +
       ". Reintenta en un minuto; la comparación no inventa precios ni existencias.", true);
     announce("Ninguna cadena respondió a la cesta: " + failPlain(failed) + ".");
     return;
   }
 
-  const best = basket.ranking.find((r) => !isDiscarded(r.store)) || null;
-  if (best) {
-    const rival = basket.ranking.find((r) => r.store !== best.store && !isDiscarded(r.store));
-    rec.hidden = false;
-    $("rec-chain").innerHTML = logo(best.store);
-    $("rec-total").textContent = money(best.totalCents);
-    const coverage = state.lines.length === 1 ? "la única línea" : "las " + state.lines.length + " líneas";
-    $("rec-meta").textContent = rival
-      ? money(rival.totalCents - best.totalCents) + " menos que " + nameOf(rival.store) + " · cubre " + coverage
-      : "es la única cadena que cubre " + coverage;
-  } else {
-    rec.hidden = true;
-  }
+  // One row per chain that holds something, in the table's order: there is no cheapest
+  // basket, because each of these rows prices a different set of goods.
+  for (const { chain, lines } of baskets) rank.appendChild(comparisonRow(chain, lines));
 
-  // Every chain that covers the whole basket, cheapest first, with the delta against the
-  // headline. A discarded store stays visible, struck through, instead of disappearing.
-  basket.ranking.forEach((r, i) => {
-    const chain = basket.chains.find((c) => c.store === r.store);
-    if (!chain) return;
-    const discarded = isDiscarded(r.store);
-    const isBest = Boolean(best && r.store === best.store);
-    const delta = isBest ? ICON.check + "la más barata"
-      : best ? "+" + money(r.totalCents - best.totalCents) : "";
-    const li = document.createElement("li");
-    li.className = "row" + (discarded ? " is-out" : "") + (isBest ? " is-best" : "");
-    li.dataset.chain = r.store;
-    li.innerHTML = `<span class="pos" aria-hidden="true">${i + 1}</span>
-      <span class="who">${logo(r.store)}<span class="st">${discarded ? "tienda descartada" : esc(STORE_HINT[r.store] || "")}</span></span>
-      <span class="cov">${esc(chain.coverage || "")}</span>
-      <span class="val">${money(r.totalCents)}</span>
-      <span class="delta${isBest ? " is-best" : ""}">${delta}</span>`;
-    rank.appendChild(li);
-  });
-
-  // Chains that did not answer: one compact line under the ranking, never a competitor row.
+  // Chains that did not answer: one compact line under the rows, never a competitor row.
   if (failed.length) {
     const box = $("comp-fail");
     box.hidden = false;
     box.innerHTML = failBody(failed, "basket");
   }
 
-  // Chains that answered but do not cover the basket keep their own section.
-  const incomplete = answered.filter((c) => c.missing.length || c.stale.length);
-  if (incomplete.length) {
-    $("down-h").hidden = false;
-    $("down-sub").hidden = false;
-    for (const chain of incomplete) {
-      const li = document.createElement("li");
-      li.dataset.chain = chain.store;
-      const why = [];
-      if (chain.missing.length) why.push("le falta " + chain.missing.join(", "));
-      if (chain.stale.length) why.push("sin confirmar " + chain.stale.join(", "));
-      li.innerHTML = `<span class="who">${logo(chain.store)}
-          <span class="why">${esc(chain.coverage || "")} · ${esc(why.join(" · "))}</span></span>
-        <span class="end">${chain.stale.length
-          ? '<span class="tag tag-warn">' + ICON.warn + "Sin confirmar</span>"
-          : '<span class="tag">' + ICON.warn + "Falta un artículo</span>"}</span>`;
-      down.appendChild(li);
-    }
-  }
-  if (basket.ranking.length && !best) {
-    $("comp-note").hidden = false;
-    $("comp-note").textContent = "Has descartado todas las tiendas completas: vuelve a marcar alguna para ver la recomendación.";
-  }
-
-  if (best) {
-    const rival = basket.ranking.find((r) => r.store !== best.store && !isDiscarded(r.store));
-    announce("Cesta completa más barata: " + nameOf(best.store) + " " + money(best.totalCents) +
-      (rival ? ", " + money(rival.totalCents - best.totalCents) + " menos que " + nameOf(rival.store) : "") + ".");
-  } else if (!basket.ranking.length) {
-    announce("Ninguna cadena cubre la cesta completa: la comparación sigue con lo que responde cada una.");
-  }
+  announce(baskets.length
+    ? "Una cesta por supermercado: " + baskets.map((b) => nameOf(b.chain.store) + ", " + countOf(b.lines.length) + " por " + money(b.chain.totalCents)).join("; ") + "."
+    : "Cada producto vive en la cesta de su supermercado; hoy no respondió ninguna de esas cadenas.");
 }
 
 document.addEventListener("click", (event) => {
   const btn = event.target.closest("[data-retry]");
   if (!btn) return;
-  const what = btn.dataset.retry;
-  if (what === "search" && state.lastTerm) { runSearch(state.lastTerm, true); return; }
-  if (what === "candidates") { state.candidatesStale = true; ensureCandidates(true); return; }
+  if (btn.dataset.retry === "search" && state.lastTerm) { runSearch(state.lastTerm, true); return; }
   refresh(true, true);
 });
 

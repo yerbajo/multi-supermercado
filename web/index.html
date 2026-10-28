@@ -94,7 +94,7 @@
   <div class="bottom">
     <section class="panel" aria-labelledby="buscar-h">
       <h2 id="buscar-h">Buscar en tus tiendas</h2>
-      <p class="sub">El mismo término se busca en las seis cadenas, cada una en el catálogo que publica hoy.</p>
+      <p class="sub">El mismo término se busca en las seis cadenas, cada una en el catálogo que publica hoy. El botón de la cesta de una fila añade ese producto a la cesta de esa cadena, y a ninguna otra.</p>
       <form class="search-row" id="search-form" novalidate>
         <div class="field">
           <label for="q">Qué quieres comprar</label>
@@ -110,33 +110,20 @@
 
     <section class="panel" aria-labelledby="cesta-h">
       <h2 id="cesta-h">Tu cesta, supermercado a supermercado</h2>
-      <p class="sub">Cada cadena tiene su sección con lo que te daría en cada línea y su subtotal. La misma línea puede llevar un producto distinto en cada supermercado: es lo que cuesta comprarlo ahí.</p>
+      <p class="sub">Cada producto entra solo en la cesta del supermercado donde lo añadiste. Cada sección tiene sus artículos, su producto y su total: no hay una cesta única que sume varias cadenas.</p>
       <ul class="lines" id="lines">
-        <li class="empty" id="lines-empty">Todavía no hay líneas. Busca un artículo y añádelo.</li>
+        <li class="empty" id="lines-empty">Todavía no hay líneas. Busca un artículo y añádelo desde la fila de su cadena.</li>
       </ul>
-      <form class="addline" id="add-form" novalidate>
-        <label for="add-term">Añadir a la cesta</label>
-        <div class="addline-row">
-          <input id="add-term" type="search" autocomplete="off" placeholder="por ejemplo, yogur natural">
-          <button class="btn btn-quiet" type="submit">Añadir</button>
-        </div>
-      </form>
       <p class="fine" id="add-status" role="status"></p>
     </section>
   </div>
 
   <section class="sect" aria-labelledby="comp-h">
     <div class="sect-head">
-      <h2 id="comp-h">La comparación</h2>
+      <h2 id="comp-h">Lo que cuesta tu cesta en cada supermercado</h2>
       <span class="hint" id="comp-meta">Sin cesta todavía</span>
     </div>
-    <p class="sub" id="comp-sub">El ranking solo incluye las cadenas que cubren todas las líneas. Una cadena caída no cancela la comparación con las demás.</p>
-
-    <div class="rec" id="rec" hidden>
-      <p class="rec-label" id="rec-label">La más barata con la cesta completa</p>
-      <p class="rec-top"><span class="rec-chain" id="rec-chain">—</span><span class="rec-total" id="rec-total">—</span></p>
-      <p class="rec-meta" id="rec-meta"></p>
-    </div>
+    <p class="sub" id="comp-sub">Cada fila es la cesta de una cadena: los artículos que le pediste a ella y lo que cobra por ellos. No son cestas comparables entre sí, así que aquí no se declara ninguna «más barata». Una cadena caída no cancela las demás.</p>
 
     <div class="empty-state" id="comp-empty" hidden>
       <span class="empty-icon" aria-hidden="true">
@@ -150,18 +137,13 @@
 
     <ol class="rank" id="rank"></ol>
     <p class="fail-line" id="comp-fail" hidden></p>
-    <p class="fine" id="comp-note" hidden></p>
-
-    <h3 class="down-h" id="down-h">Sin total hoy</h3>
-    <p class="sub" id="down-sub">Estas cadenas sí contestaron, pero no cubren todas las líneas. Ninguna cancela la comparación: un total ausente es mejor que un total inventado.</p>
-    <ul class="down" id="down"></ul>
 
     <p class="sr" role="status" aria-live="polite" id="live"></p>
   </section>
 </main>
 
 <footer>
-  <p>Los precios y la cobertura los publica cada cadena en el momento de la consulta; el total se suma en céntimos enteros. Las tiendas, direcciones y distancias son un <strong>ejemplo</strong> hasta que exista el localizador por cadena. La zona de DIA es la del servidor (28041) hasta que se fije: no es tu zona. Solo DIA tiene cesta de tienda real; las demás cadenas no la tienen.</p>
+  <p>Los precios los publica cada cadena en el momento de la consulta; el total se suma en céntimos enteros. Las tiendas, direcciones y distancias son un <strong>ejemplo</strong> hasta que exista el localizador por cadena. La zona de DIA es la del servidor (28041) hasta que se fije: no es tu zona. Solo DIA tiene cesta de tienda real; las demás cadenas no la tienen.</p>
 </footer>
 
 <script src="app.js"></script>
