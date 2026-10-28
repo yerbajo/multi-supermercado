@@ -166,14 +166,17 @@ main{max-width:1160px;margin-inline:auto;padding:var(--sp-2) var(--sp-7) 0}
   overflow:hidden;display:flex;flex-direction:column;
 }
 .shop-label{display:block;padding:var(--sp-4) var(--sp-4) var(--sp-3);cursor:pointer;flex:1}
-.shop-check{display:flex;align-items:center;gap:var(--sp-2);margin-block-end:var(--sp-2)}
+/* The check row is as tall with a control as without one, so every card in a row puts its
+   logo on the same baseline; the mechanism sentence reserves two lines and the foot sits
+   on the bottom edge, so a shorter card never floats its chip. */
+.shop-check{display:flex;align-items:center;gap:var(--sp-2);margin-block-end:var(--sp-2);min-height:18px}
 .shop-check input{width:18px;height:18px;margin:0;accent-color:var(--accent);flex:none}
 .shop-check .lab{font-size:var(--text-xs);color:var(--ink-2);font-weight:600;text-transform:uppercase;letter-spacing:0.05em}
 .shop-name{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3)}
 .shop .logo{height:24px}
 .shop-name .dist{font-size:var(--text-sm);color:var(--ink-2);white-space:nowrap;text-align:end}
 .shop .addr{display:block;margin-block-start:var(--sp-1);font-size:var(--text-sm);color:var(--ink-2)}
-.shop .cap{display:block;margin-block-start:var(--sp-2);font-size:var(--text-xs);color:var(--ink-2);line-height:1.5}
+.shop .cap{display:block;margin-block-start:var(--sp-2);font-size:var(--text-xs);color:var(--ink-2);line-height:1.5;min-height:3em}
 .shop.no-pick .shop-label{cursor:default}
 .shop-foot{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);padding:0 var(--sp-4) var(--sp-3);flex-wrap:wrap}
 .shop-foot .tag{white-space:nowrap}

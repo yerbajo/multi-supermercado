@@ -15,14 +15,16 @@ const PICKABLE = new Set(["dia", "mas", "lidl"]);
 const STORE_HINT = {
   dia: "Almacén de tu zona · ejemplo",
   mas: "Punto de recogida · ejemplo",
-  lidl: "Tienda más cercana · ejemplo",
+  lidl: "Tienda física · ejemplo",
   aldi: "Sin tienda: el catálogo va por región",
   alcampo: "Compra online: el código postal se pide en su web",
   carrefour: "Precios de un comparador externo",
 };
-const MODE_LABEL = {
-  warehouse: "Zona del servidor",
-  pickup: "Recogida en tienda",
+// The chip is a function of the zone mode alone, so a card says the mode once instead of
+// writing it again in prose. One mode, one chip, four different texts.
+const MODE_CHIP = {
+  warehouse: "Zona del servidor (28041)",
+  pickup: "Sin precio por tienda",
   region: "Precios por región",
   none: "Sin zona",
 };
@@ -99,21 +101,20 @@ async function api(path, body) {
 
 /* ---------------- store cards, from /api/caps ---------------- */
 
-function zoneText(zone) {
-  const head = {
-    warehouse: "Zona del servidor (28041) hasta que se fije",
-    pickup: "La tienda no cambia el precio",
-    region: "El precio depende de la región",
-    none: "Esta cadena no tiene zona",
-  }[zone.mode] || "Esta cadena no tiene zona";
-  const scope = zone.price_scoped ? "el precio depende de la zona" : "el precio no depende de la zona";
-  return head + " · " + zone.label + " · " + scope;
+// The one mechanism sentence is the capability table's own label, capitalized and closed:
+// T29's wording verbatim, so no card states a mechanism the investigation did not prove.
+function mechanism(zone) {
+  const text = String(zone.label || "sin datos").replace(/[.·]+$/, "");
+  return text.charAt(0).toUpperCase() + text.slice(1) + ".";
 }
 
+// The price scope, once, beside the logo: does the price follow the zone at all?
 function zoneShort(zone) {
-  return zone.price_scoped ? "precio por zona" : "precio de catálogo";
+  return zone.price_scoped ? "precio según la zona" : "precio de catálogo";
 }
 
+// One card, four facts: the status header, the logo with the price scope, one mechanism
+// sentence and one chip. The capability table supplies each of them once (T37).
 function shopCard(cap) {
   const name = nameOf(cap.store);
   const pickable = PICKABLE.has(cap.store);
@@ -126,24 +127,26 @@ function shopCard(cap) {
     ? `<input type="checkbox" data-chain="${esc(cap.store)}" aria-label="Usar la tienda de ${name}"${state.chosen[cap.store] ? " checked" : ""}>`
     : "";
   const label = pickable ? "Usar esta tienda" : "Sin tienda que elegir";
+  // The store line is the example the section disclaimer covers, so only a card that has
+  // a store to choose keeps it; a chain with no store has no example to show.
   const body = `
       <span class="shop-check">${control}<span class="lab">${label}</span></span>
       <span class="shop-name">${logo(cap.store)}<span class="dist">${esc(zoneShort(zone))}</span></span>
-      <span class="addr">${esc(STORE_HINT[cap.store] || "Sin tienda en el modelo")}</span>
-      <span class="cap">${esc(zoneText(zone))}</span>`;
+      ${pickable ? `<span class="addr">${esc(STORE_HINT[cap.store] || "")}</span>` : ""}
+      <span class="cap">${esc(mechanism(zone))}</span>`;
   li.innerHTML = (pickable ? `<label class="shop-label">${body}</label>` : `<span class="shop-label">${body}</span>`) +
-    `<div class="shop-foot"><span class="tag ${tagClass}">${zone.price_scoped ? ICON.warn : ICON.check}${esc(MODE_LABEL[zone.mode] || "Sin zona")}</span></div>`;
+    `<div class="shop-foot"><span class="tag ${tagClass}">${zone.price_scoped ? ICON.warn : ICON.check}${esc(MODE_CHIP[zone.mode] || "Sin zona")}</span></div>`;
   return li;
 }
 
-function pickedCount() {
-  return chainOrder().filter((s) => PICKABLE.has(s) && state.chosen[s]).length;
-}
-
 function updatePicked() {
-  const n = pickedCount();
-  $("picked").textContent = n === 0 ? "Sin tiendas elegidas"
-    : n + (n === 1 ? " tienda elegida" : " tiendas elegidas");
+  const chains = chainOrder();
+  const pickable = chains.filter((s) => PICKABLE.has(s));
+  const n = pickable.filter((s) => state.chosen[s]).length;
+  // The counter names the capability before the selection, so next to a card that says
+  // «sin tienda que elegir» it reads as a fact instead of a contradiction (T37).
+  $("picked").textContent = pickable.length + " de " + chains.length +
+    " cadenas permiten elegir tienda · " + n + (n === 1 ? " elegida" : " elegidas");
 }
 
 function renderShops() {
@@ -159,6 +162,18 @@ function renderShops() {
   for (const cap of caps) shops.appendChild(shopCard(cap));
   updatePicked();
 }
+
+// The checkbox is the store choice: it moves the counter and takes the chain out of the
+// ranking, which is why the counter reads as a sentence and stays live.
+$("shops").addEventListener("change", (event) => {
+  const box = event.target.closest("input[data-chain]");
+  if (!box) return;
+  const name = nameOf(box.dataset.chain);
+  state.chosen[box.dataset.chain] = box.checked;
+  updatePicked();
+  announce(box.checked ? "Vuelve a competir la tienda de " + name + "." : "Descartada la tienda de " + name + " de la comparación.");
+  renderComparison();
+});
 
 async function loadCaps() {
   try {

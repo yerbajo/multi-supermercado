@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"multisuper/internal/capabilities"
 )
 
 func read(t *testing.T, name string) string {
@@ -90,7 +92,7 @@ func TestAccessibilityStatics(t *testing.T) {
 		"skip link":       {html, `class="skip"`},
 		"retry offer":     {js, `data-retry=`},
 		"postal no claim": {html, "no filtra precios"},
-		"dia zone claim":  {js, "Zona del servidor (28041) hasta que se fije"},
+		"dia zone claim":  {html, "no es tu zona"},
 	} {
 		if !strings.Contains(check[0], check[1]) {
 			t.Errorf("%s: missing %q", what, check[1])
@@ -198,5 +200,142 @@ func TestFailureStatesAreIconAndText(t *testing.T) {
 	}
 	if strings.Contains(js, "ERROR_TEXT") {
 		t.Error("app.js still carries the old per-row error prose")
+	}
+}
+
+// fnBody is one function of app.js, from its signature to its closing brace: an
+// assertion about the card cannot pass because the copy moved elsewhere in the file.
+func fnBody(t *testing.T, js, fn string) string {
+	t.Helper()
+	at := strings.Index(js, fn)
+	if at < 0 {
+		t.Fatalf("app.js has no %s", strings.TrimSuffix(fn, "("))
+	}
+	body := js[at:]
+	end := strings.Index(body, "\n}")
+	if end < 0 {
+		t.Fatalf("%s is not closed", fn)
+	}
+	return body[:end]
+}
+
+// modeChips reads the mode table out of app.js, so the assertion checks the real mapping
+// instead of a copy of it.
+func modeChips(t *testing.T, js string) map[string]string {
+	t.Helper()
+	start := strings.Index(js, "const MODE_CHIP = {")
+	if start < 0 {
+		t.Fatal("app.js has no MODE_CHIP table")
+	}
+	block := js[start:]
+	end := strings.Index(block, "};")
+	if end < 0 {
+		t.Fatal("MODE_CHIP is not closed")
+	}
+	block = block[:end]
+	out := map[string]string{}
+	for _, m := range regexp.MustCompile(`(\w+):\s*"([^"]*)"`).FindAllStringSubmatch(block, -1) {
+		out[m[1]] = m[2]
+	}
+	return out
+}
+
+// TestStoreCardCopyIsNotRepeated pins T37: one store card is the status header, the logo,
+// the price-scope label, one mechanism sentence and one chip. Each capability field
+// reaches the template exactly once — the table's label is the sentence, the mode is the
+// chip, price_scoped is the header label — instead of three or four copies of it.
+func TestStoreCardCopyIsNotRepeated(t *testing.T) {
+	js, html := read(t, "app.js"), read(t, "index.html")
+	card := fnBody(t, js, "function shopCard(")
+	mech := fnBody(t, js, "function mechanism(")
+	scope := fnBody(t, js, "function zoneShort(")
+
+	for what, want := range map[string]int{
+		"mechanism(zone)":      1, // the one mechanism sentence (the table's label)
+		"MODE_CHIP[zone.mode]": 1, // the one chip, derived from the mode
+		"zoneShort(zone)":      1, // the one price-scope label
+		"zone.price_scoped":    1, // the chip's icon, never a fourth sentence
+	} {
+		if got := strings.Count(card, what); got != want {
+			t.Errorf("shopCard uses %s %d times, want %d", what, got, want)
+		}
+	}
+	if got := strings.Count(mech, "zone.label"); got != 1 {
+		t.Errorf("mechanism reads zone.label %d times, want 1", got)
+	}
+	if got := strings.Count(scope, "zone.price_scoped"); got != 1 {
+		t.Errorf("zoneShort reads zone.price_scoped %d times, want 1", got)
+	}
+
+	// The layers that said the same thing again are gone, not merely renamed.
+	for _, gone := range []string{
+		"zoneText(", "MODE_LABEL",
+		"el precio no depende de la zona", "Esta cadena no tiene zona",
+		"El precio depende de la región", "hasta que se fije", "precio por zona",
+	} {
+		if strings.Contains(js, gone) {
+			t.Errorf("app.js still repeats the capability copy with %q", gone)
+		}
+	}
+
+	// The four mode -> chip pairs, and no two modes sharing a chip.
+	want := map[string]string{
+		"warehouse": "Zona del servidor (28041)",
+		"region":    "Precios por región",
+		"pickup":    "Sin precio por tienda",
+		"none":      "Sin zona",
+	}
+	chips := modeChips(t, js)
+	if len(chips) != len(want) {
+		t.Errorf("MODE_CHIP lists %d modes, want %d: %v", len(chips), len(want), chips)
+	}
+	for mode, text := range want {
+		if chips[mode] != text {
+			t.Errorf("mode %s chips %q, want %q", mode, chips[mode], text)
+		}
+	}
+	seen := map[string]string{}
+	for mode, text := range chips {
+		if other, dup := seen[text]; dup {
+			t.Errorf("modes %s and %s share the chip %q", other, mode, text)
+		}
+		seen[text] = mode
+	}
+
+	// No chain's zone label prose appears twice in the page the card is built from: the
+	// capability table stays the only source of the mechanism sentence.
+	for _, cap := range capabilities.All() {
+		if n := strings.Count(js+html, cap.Zone.Label); n > 1 {
+			t.Errorf("%s zone label appears %d times, a card says it once", cap.Store, n)
+		}
+	}
+}
+
+// TestStoreCardCounterIsNotAContradiction pins the other half of T37: the counter over the
+// store cards names the capability («cadenas permiten elegir tienda»), not the chosen
+// stores alone, so it cannot read as a contradiction of the «sin tienda que elegir» cards.
+func TestStoreCardCounterIsNotAContradiction(t *testing.T) {
+	js := read(t, "app.js")
+	start := strings.Index(js, "function updatePicked(")
+	if start < 0 {
+		t.Fatal("app.js has no updatePicked")
+	}
+	body := js[start:]
+	body = body[:strings.Index(body, "\n}")]
+	for _, want := range []string{"cadenas permiten elegir tienda", "PICKABLE.has(s)", "elegidas"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the store counter is missing %q", want)
+		}
+	}
+	if strings.Contains(js, `" tiendas elegidas"`) {
+		t.Error("app.js still counts only the chosen stores")
+	}
+	// The number is live: ticking or clearing a store card moves the counter, and the same
+	// choice takes the chain out of the ranking.
+	if !strings.Contains(js, "state.chosen[box.dataset.chain] = box.checked") {
+		t.Error("the store checkbox does not update the choice, so the counter cannot be live")
+	}
+	if !strings.Contains(js, "updatePicked()") {
+		t.Error("nothing refreshes the store counter")
 	}
 }
