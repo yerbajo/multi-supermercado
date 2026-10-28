@@ -1,0 +1,193 @@
+{
+  "productGroups": [
+    {
+      "type": "featured",
+      "decoratedProducts": [
+        {
+          "productId": "e441d931-659c-4010-93ec-3a9b11e483da",
+          "retailerProductId": "499461",
+          "type": "REGULAR",
+          "externalAdvertId": "499461_2hQ2nXek97yJXfz09Z7scf_af401332-7554-41b2-bbb1-e6a1380145b0",
+          "featuredProductCampaign": {
+            "campaignId": "2hQ2nXek97yJXfz09Z7scf",
+            "campaignName": "01-59 UNILEVER (1/1/2026  - 31/12/2026) kw:detergente",
+            "externalAdvertId": "499461_2hQ2nXek97yJXfz09Z7scf_af401332-7554-41b2-bbb1-e6a1380145b0",
+            "trackId": "499461_2hQ2nXek97yJXfz09Z7scf_af401332-7554-41b2-bbb1-e6a1380145b0",
+            "source": "CONTENTFUL",
+            "pricingModel": "FIXED_TENANCY"
+          },
+          "name": "SKIP Detergente líquido ciclos cortos anti olor 37 ds.",
+          "brand": "SKIP",
+          "packSizeDescription": "37 por envase",
+          "price": {
+            "amount": "8.99",
+            "currency": "EUR"
+          },
+          "unitPrice": {
+            "price": {
+              "amount": "0.24",
+              "currency": "EUR"
+            },
+            "unit": "fop.price.per.each",
+            "unitName": "EACH"
+          },
+          "available": true,
+          "isVerifiedPurchase": false,
+          "quantityInBasket": 0,
+          "maxQuantityReached": false,
+          "promotions": [
+            {
+              "promoId": "a8385b18-2c6c-4afc-9c7d-ec8871a20784",
+              "retailerPromotionId": "1170133_1",
+              "description": "Producto en Folleto (22/10/26_04/11/26)",
+              "type": "OFFER",
+              "presentationMode": "DEFAULT",
+              "limitReached": false
+            }
+          ],
+          "taxCodesDisplayNames": [],
+          "imageIds": [
+            "1ba985ea-01ef-4105-9fe3-f47c495e4227",
+            "70fb5899-c020-41f4-b765-2f8aeed80cd0",
+            "fe60ef1c-04dd-456a-8bdb-0286b40d52e8",
+            "23368bd7-9c0b-4c5a-a259-74bda617ccf3",
+            "588c1a8f-d66c-438a-988b-799405b0ca3d",
+            "49914888-05fc-4609-b3fe-b96112f2717b"
+          ],
+          "imagePaths": [
+            "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/1ba985ea-01ef-4105-9fe3-f47c495e4227",
+            "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/70fb5899-c020-41f4-b765-2f8aeed80cd0",
+            "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/fe60ef1c-04dd-456a-8bdb-0286b40d52e8",
+            "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/23368bd7-9c0b-4c5a-a259-74bda617ccf3",
+            "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/588c1a8f-d66c-438a-988b-799405b0ca3d",
+            "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/49914888-05fc-4609-b3fe-b96112f2717b"
+          ],
+          "iconAttributes": [],
+          "icons": [],
+          "basketLines": [],
+          "timeRestricted": false,
+          "alternatives": [],
+          "isInShoppingList": false,
+          "isInCurrentCatalog": true,
+          "ratingSummary": {
+            "overallRating": "0.0",
+            "count": 0
+          },
+          "retailerFinancingPlanIds": [
+            "022",
+            "025",
+            "026",
+            "027",
+            "016",
+            "021"
+          ],
+          "alcohol": false,
+          "categoryPath": [
+            "Folletos y Promociones",
+            "Folleto Alimentación Canarias",
+            "Droguería",
+            "Lavado Ropa"
+          ],
+          "isNew": false,
+          "images": [
+            {
+              "src": "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/1ba985ea-01ef-4105-9fe3-f47c495e4227/500x500.jpg",
+              "description": "SKIP Detergente líquido ciclos cortos anti olor 37 ds."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "personalized",
+      "decoratedProducts": [
+        {
+          "productId": "1c95a00a-97eb-4c95-a98b-a35c8e7040c6",
+          "retailerProductId": "644160",
+          "type": "REGULAR",
+          "name": "PRODUCTO ALCAMPO Detergente líquido Jabón de Marsella 74 ds. 4 l.",
+          "brand": "PRODUCTO ALCAMPO",
+          "packSizeDescription": "80 por envase",
+          "price": {
+            "amount": "5.32",
+            "currency": "EUR"
+          },
+          "unitPrice": {
+            "price": {
+              "amount": "0.07",
+              "currency": "EUR"
+            },
+            "unit": "fop.price.per.each",
+            "unitName": "EACH"
+          },
+          "available": true,
+          "isVerifiedPurchase": false,
+          "quantityInBasket": 0,
+          "maxQuantityReached": false,
+          "taxCodesDisplayNames": [],
+          "imageIds": [
+            "0608e42a-6c4b-4740-a33f-62c1297b47bd",
+            "3d7d3417-0516-4f86-acb7-4a51052f46bd"
+          ],
+          "imagePaths": [
+            "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/0608e42a-6c4b-4740-a33f-62c1297b47bd",
+            "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/3d7d3417-0516-4f86-acb7-4a51052f46bd"
+          ],
+          "iconAttributes": [
+            {
+              "label": "Producto Alcampo",
+              "file": "icon_alcampo_product"
+            }
+          ],
+          "icons": [
+            {
+              "imageId": "c0ed6eee-7ff2-46ac-82f5-cb19aa991fa7",
+              "label": "Corrosivo para la piel, ojos y/o metales",
+              "path": "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/c0ed6eee-7ff2-46ac-82f5-cb19aa991fa7",
+              "type": "CERTIFICATION",
+              "src": "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/c0ed6eee-7ff2-46ac-82f5-cb19aa991fa7/108x108.jpg",
+              "description": "Corrosivo para la piel, ojos y/o metales"
+            }
+          ],
+          "basketLines": [],
+          "timeRestricted": false,
+          "alternatives": [],
+          "isInShoppingList": false,
+          "isInCurrentCatalog": true,
+          "ratingSummary": {
+            "overallRating": "0.0",
+            "count": 0
+          },
+          "retailerFinancingPlanIds": [
+            "022",
+            "025",
+            "026",
+            "027",
+            "016",
+            "021"
+          ],
+          "alcohol": false,
+          "categoryPath": [
+            "Droguería",
+            "Lavado de Ropa",
+            "Detergente",
+            "Para lavar a máquina",
+            "Detergente líquido"
+          ],
+          "isNew": false,
+          "images": [
+            {
+              "src": "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/0608e42a-6c4b-4740-a33f-62c1297b47bd/500x500.jpg",
+              "description": "PRODUCTO ALCAMPO Detergente líquido Jabón de Marsella 74 ds. 4 l."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "nextPageToken": "8e77843c-9601-4153-83a2-d5ffbad5efda"
+  },
+  "additionalPageInfo": {},
+  "missedPromotions": []
+}
