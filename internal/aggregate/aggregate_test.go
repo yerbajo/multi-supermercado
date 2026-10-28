@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -215,6 +217,194 @@ func named(name string, hits ...string) *stub {
 		s.hits = append(s.hits, contract.Hit{Store: name, ID: fmt.Sprintf("%s-%d", name, i), Name: h})
 	}
 	return s
+}
+
+// keyedStub answers per search term, so a test can prove which queries a chain was asked
+// and give the catalogue variant a different answer from the typed one.
+type keyedStub struct {
+	byTerm map[string][]contract.Hit
+	fail   map[string]error
+	mu     sync.Mutex
+	terms  []string
+}
+
+func (s *keyedStub) Search(ctx context.Context, term string, limit int) (contract.Result, error) {
+	s.mu.Lock()
+	s.terms = append(s.terms, term)
+	s.mu.Unlock()
+	if err := s.fail[term]; err != nil {
+		return contract.Result{}, err
+	}
+	h := s.byTerm[term]
+	return contract.Result{Store: "stub", Query: term, Count: len(h), Hits: h}, nil
+}
+
+// asked returns the terms the chain was asked for, sorted so the assertion is stable
+// even though the requests go out in parallel.
+func (s *keyedStub) askedTerms() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := append([]string(nil), s.terms...)
+	sort.Strings(out)
+	return out
+}
+
+// The real MAS answer for «leche de soja»: soy sauce, textured soy and soy bread, none of
+// which is the drink, plus one hit both queries return.
+var masSoyJunk = []contract.Hit{
+	{Store: "mas", ID: "1", Name: "Salsa de soja KIKKOMAN 150ml"},
+	{Store: "mas", ID: "2", Name: "Soja texturizada 500g"},
+	{Store: "mas", ID: "044616", Name: "Bebida soja con calcio IFA ELIGES 1l"},
+}
+
+// The drink only answers the catalogue form, with the two IFA SKUs the user reported.
+var masSoyDrinks = []contract.Hit{
+	{Store: "mas", ID: "044616", Name: "Bebida soja con calcio IFA ELIGES 1l"},
+	{Store: "mas", ID: "044619", Name: "Bebida soja sin azucar IFA ELIGES 1l"},
+}
+
+// The shared helper the fan-out and the single-chain commands both call: variants searched
+// together, hits merged by ID, best coverage first, cut to the caller's row budget.
+func TestSearchMergesTheVariantsAndDedupes(t *testing.T) {
+	s := &keyedStub{byTerm: map[string][]contract.Hit{
+		"leche de soja":  masSoyJunk,
+		"bebida de soja": masSoyDrinks,
+	}}
+
+	got := Search(context.Background(), Chain{Store: "mas", Searcher: s}, "leche de soja", 2, time.Second)
+
+	if got.Error != nil {
+		t.Fatalf("error = %+v, want none", got.Error)
+	}
+	if len(got.Hits) != 2 || got.Count != 2 {
+		t.Fatalf("got %d hits and count %d, want the 2-row budget", len(got.Hits), got.Count)
+	}
+	for i, want := range []string{"044616", "044619"} {
+		if got.Hits[i].ID != want {
+			t.Fatalf("hits = %v, want %s first", names(got.Hits), want)
+		}
+	}
+}
+
+// A query the catalogue does not rewrite costs exactly one request.
+func TestSearchAsksOnceWhenTheQueryHasNoVariant(t *testing.T) {
+	s := &keyedStub{byTerm: map[string][]contract.Hit{"leche entera": hits(3)}}
+
+	Search(context.Background(), Chain{Store: "dia", Searcher: s}, "leche entera", 3, time.Second)
+
+	if got := s.askedTerms(); len(got) != 1 || got[0] != "leche entera" {
+		t.Fatalf("chain was asked for %v, want only the typed query", got)
+	}
+}
+
+// A variant failure is a silent miss: the typed answer still comes back and the chain
+// stays healthy.
+func TestSearchToleratesAVariantFailure(t *testing.T) {
+	s := &keyedStub{
+		byTerm: map[string][]contract.Hit{"leche de soja": masSoyJunk},
+		fail:   map[string]error{"bebida de soja": &StatusError{Status: 403, Msg: "mas: 403"}},
+	}
+
+	got := Search(context.Background(), Chain{Store: "mas", Searcher: s}, "leche de soja", 10, time.Second)
+
+	if got.Error != nil {
+		t.Fatalf("a variant failure voided the chain: %+v", got.Error)
+	}
+	if len(got.Hits) != len(masSoyJunk) {
+		t.Fatalf("got %d hits, want the typed answer's %d", len(got.Hits), len(masSoyJunk))
+	}
+}
+
+// The plant drink is only in the answer to «bebida de soja», so the variant is searched
+// too, and the drink leads even though the typed answer came first.
+func TestFindSearchesTheCatalogueVariantAndRanksByIt(t *testing.T) {
+	s := &keyedStub{byTerm: map[string][]contract.Hit{
+		"leche de soja":  masSoyJunk,
+		"bebida de soja": masSoyDrinks,
+	}}
+
+	res := Find(context.Background(), "leche de soja", 6, time.Second, []Chain{{Store: "mas", Searcher: s}})
+
+	if got := s.askedTerms(); len(got) != 2 || got[0] != "bebida de soja" || got[1] != "leche de soja" {
+		t.Fatalf("chain was asked for %v, want the typed query and its catalogue form", got)
+	}
+	r := res.Results[0]
+	if len(r.Hits) != 4 {
+		t.Fatalf("got %d hits, want the 4 distinct products: %v", len(r.Hits), names(r.Hits))
+	}
+	if r.Hits[0].ID != "044616" || r.Hits[1].ID != "044619" {
+		t.Fatalf("hits = %v, want the two IFA drinks first", names(r.Hits))
+	}
+	// 044616 answered both queries and is kept once, as the first occurrence.
+	seen := make(map[string]int, len(r.Hits))
+	for _, h := range r.Hits {
+		seen[h.ID]++
+	}
+	if seen["044616"] != 1 {
+		t.Errorf("044616 appears %d times, want once", seen["044616"])
+	}
+	if res.Count != len(r.Hits) || r.Count != len(r.Hits) {
+		t.Errorf("count = %d/%d, want len(hits) = %d", res.Count, r.Count, len(r.Hits))
+	}
+}
+
+// A query the catalogue does not rewrite is asked exactly once per chain: the existing
+// one-request-per-chain behaviour is untouched.
+func TestFindAsksEachChainOnceWhenTheQueryHasNoVariant(t *testing.T) {
+	s := &keyedStub{byTerm: map[string][]contract.Hit{"leche entera": hits(3)}}
+
+	Find(context.Background(), "leche entera", 2, time.Second, []Chain{{Store: "dia", Searcher: s}})
+
+	if got := s.askedTerms(); len(got) != 1 || got[0] != "leche entera" {
+		t.Fatalf("chain was asked for %v, want only the typed query", got)
+	}
+}
+
+// A chain that fails on the variant but answers the typed query is still healthy: the
+// variant is a bonus, never a condition.
+func TestFindKeepsAChainThatFailsOnTheVariant(t *testing.T) {
+	s := &keyedStub{
+		byTerm: map[string][]contract.Hit{"leche de soja": masSoyJunk},
+		fail:   map[string]error{"bebida de soja": &StatusError{Status: 403, Msg: "mas: 403"}},
+	}
+
+	res := Find(context.Background(), "leche de soja", 6, time.Second, []Chain{{Store: "mas", Searcher: s}})
+
+	r := res.Results[0]
+	if r.Error != nil {
+		t.Fatalf("a variant failure voided the chain: %+v", r.Error)
+	}
+	if len(r.Hits) != 3 || r.Count != 3 {
+		t.Fatalf("got %d hits and count %d, want the typed answer's 3", len(r.Hits), r.Count)
+	}
+}
+
+// A chain that fails on the typed query keeps failing even when a variant answers: the
+// typed query is what the caller asked for.
+func TestFindReportsTheTypedQueryFailureEvenWhenAVariantAnswers(t *testing.T) {
+	s := &keyedStub{
+		byTerm: map[string][]contract.Hit{"bebida de soja": masSoyDrinks},
+		fail:   map[string]error{"leche de soja": &StatusError{Status: 403, Msg: "mas: 403"}},
+	}
+
+	res := Find(context.Background(), "leche de soja", 6, time.Second, []Chain{{Store: "mas", Searcher: s}})
+
+	r := res.Results[0]
+	if r.Error == nil || r.Error.Code != CodeBlocked {
+		t.Fatalf("error = %+v, want the typed query's block", r.Error)
+	}
+	if len(r.Hits) != 0 {
+		t.Errorf("kept %d variant hits from a failed search", len(r.Hits))
+	}
+}
+
+// names lists hit names so a failed order is readable.
+func names(hits []contract.Hit) []string {
+	out := make([]string, len(hits))
+	for i, h := range hits {
+		out[i] = h.Name
+	}
+	return out
 }
 
 // junkOrder mixes the junk LIDL actually returned for «leche entera» with real hits: one

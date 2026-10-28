@@ -3,9 +3,12 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"regexp"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	"multisuper/internal/contract"
@@ -102,6 +105,127 @@ func TestMultiWordTermAndFlags(t *testing.T) {
 	}
 	if stub.term != "leche entera" || stub.limit != 2 || stub.page != 1 {
 		t.Fatalf("search got term=%q page=%d limit=%d", stub.term, stub.page, stub.limit)
+	}
+}
+
+// recordingSearcher answers per term and records every request, so a test can prove which
+// queries reached the store and on which page.
+type recordingSearcher struct {
+	mu     sync.Mutex
+	calls  []call
+	byTerm map[string][]contract.Hit
+}
+
+type call struct {
+	term        string
+	page, limit int
+}
+
+func (s *recordingSearcher) Search(_ context.Context, term string, page, limit int) (contract.Result, error) {
+	s.mu.Lock()
+	s.calls = append(s.calls, call{term: term, page: page, limit: limit})
+	s.mu.Unlock()
+	h := s.byTerm[term]
+	return contract.Result{Store: "mas", Query: term, Count: len(h), Hits: h}, nil
+}
+
+// requested returns the requests sorted by term, so the assertion does not depend on which
+// of two parallel queries finished first.
+func (s *recordingSearcher) requested() []call {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := append([]call(nil), s.calls...)
+	sort.Slice(out, func(i, j int) bool { return out[i].term < out[j].term })
+	return out
+}
+
+// The user's report, end to end through the command: «leche de soja» only reaches the IFA
+// drinks through the catalogue form «bebida de soja», and the hits both queries return are
+// kept once.
+func TestSearchMergesTheCatalogueVariant(t *testing.T) {
+	s := &recordingSearcher{byTerm: map[string][]contract.Hit{
+		"leche de soja": {
+			{Store: "mas", ID: "892841", Name: "Pan de soja 70g"},
+			{Store: "mas", ID: "084231", Name: "Salsa de soja IFA ELIGES 250ml"},
+			{Store: "mas", ID: "044616", Name: "Bebida soja con calcio IFA ELIGES 1l"},
+		},
+		"bebida de soja": {
+			{Store: "mas", ID: "044616", Name: "Bebida soja con calcio IFA ELIGES 1l"},
+			{Store: "mas", ID: "044619", Name: "Bebida soja sin azucar IFA ELIGES 1l"},
+		},
+	}}
+
+	var stdout strings.Builder
+	args := []string{"search", "leche", "de", "soja", "--limit", "3", "--json"}
+	if err := run(args, &stdout, &strings.Builder{}, deps{search: s}); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	var res contract.Result
+	if err := json.Unmarshal([]byte(stdout.String()), &res); err != nil {
+		t.Fatalf("stdout is not one JSON document: %v\n%s", err, stdout.String())
+	}
+	if res.Store != "mas" || res.Query != "leche de soja" || res.Count != len(res.Hits) || res.Count != 3 {
+		t.Fatalf("envelope = %+v, want mas/leche de soja/3 rows and count = len(hits)", res)
+	}
+	if res.Hits[0].ID != "044616" || res.Hits[1].ID != "044619" {
+		t.Fatalf("hits = %v, want the two IFA drinks first", res.Hits)
+	}
+	if res.Hits[2].ID != "892841" {
+		t.Fatalf("last row = %s, want the soy junk ranked after the drinks", res.Hits[2].Name)
+	}
+	for _, h := range res.Hits {
+		if h.ID == "084231" {
+			t.Fatalf("a 1-of-2 soy sauce outranked a full-coverage drink: %v", res.Hits)
+		}
+	}
+
+	want := []call{{"bebida de soja", 1, 3}, {"leche de soja", 1, 3}}
+	got := s.requested()
+	if len(got) != len(want) {
+		t.Fatalf("requests = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("requests = %+v, want %+v", got, want)
+		}
+	}
+}
+
+// --page stays the store's own pagination: from page 2 on only the typed query is sent, so
+// the variant rows are never counted twice.
+func TestSearchPageTwoSendsOnlyTheTypedQuery(t *testing.T) {
+	s := &recordingSearcher{byTerm: map[string][]contract.Hit{
+		"leche de soja": {{Store: "mas", ID: "892841", Name: "Pan de soja 70g"}},
+	}}
+
+	args := []string{"search", "leche", "de", "soja", "--page", "2", "--limit", "6", "--json"}
+	if err := run(args, &strings.Builder{}, &strings.Builder{}, deps{search: s}); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	want := []call{{"leche de soja", 2, 6}}
+	got := s.requested()
+	if len(got) != 1 || got[0] != want[0] {
+		t.Fatalf("requests = %+v, want only %+v", got, want)
+	}
+}
+
+// A query the catalogue does not rewrite costs exactly one request, as it always did.
+func TestSearchAsksOnceWithoutAVariant(t *testing.T) {
+	s := &recordingSearcher{byTerm: map[string][]contract.Hit{
+		"leche entera": {{Store: "mas", ID: "114925", Name: "Leche entera PASCUAL botella 1,5l"}},
+	}}
+
+	var stdout strings.Builder
+	if err := run([]string{"search", "leche", "entera", "--json"}, &stdout, &strings.Builder{}, deps{search: s}); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	want := []call{{"leche entera", 1, 20}}
+	got := s.requested()
+	if len(got) != 1 || got[0] != want[0] {
+		t.Fatalf("requests = %+v, want only %+v", got, want)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"multisuper/internal/aggregate"
 	"multisuper/internal/contract"
 	"multisuper/internal/mas"
 )
@@ -28,6 +29,9 @@ flags:
   --limit N  products per page, 1-100 (default 20)
   --page N   result page, 1 or more (default 1)
   --json     print the shared contract JSON envelope instead of a table
+
+No catalogue may call a plant drink "leche", so searching "leche de soja" also asks for
+"bebida de soja". From --page 2 on, only the term you typed is sent.
 
 The cart never places an order: see "mas cart --help".
 
@@ -135,7 +139,7 @@ func runSearch(args []string, stdout, stderr io.Writer, s searcher) error {
 		return usageError{fmt.Errorf("--page must be 1 or more, got %d", *page)}
 	}
 
-	res, err := s.Search(context.Background(), term, *page, *limit)
+	res, err := search(context.Background(), s, term, *page, *limit)
 	if err != nil {
 		return err
 	}
@@ -143,6 +147,29 @@ func runSearch(args []string, stdout, stderr io.Writer, s searcher) error {
 		return contract.Encode(stdout, res)
 	}
 	return printTable(stdout, res)
+}
+
+// variantSearcher adapts the paged mas client to aggregate.Searcher: a catalogue variant is
+// only ever a first-screen rescue, so it is asked on page 1.
+type variantSearcher struct{ client searcher }
+
+func (v variantSearcher) Search(ctx context.Context, term string, limit int) (contract.Result, error) {
+	return v.client.Search(ctx, term, 1, limit)
+}
+
+// search runs one `mas search`. On the first screen the typed query and its catalogue forms
+// are merged by aggregate.Search, which keeps one request per form. From page 2 on the
+// store's own pagination is used unchanged: the variant rows are first-screen only, so
+// sending them again on every page cannot double-count them.
+func search(ctx context.Context, s searcher, term string, page, limit int) (contract.Result, error) {
+	if page > 1 {
+		return s.Search(ctx, term, page, limit)
+	}
+	sr := aggregate.Search(ctx, aggregate.Chain{Store: "mas", Searcher: variantSearcher{s}}, term, limit, 0)
+	if sr.Error != nil {
+		return contract.Result{}, errors.New(sr.Error.Message)
+	}
+	return contract.Result{Store: "mas", Query: term, Count: sr.Count, Hits: sr.Hits}, nil
 }
 
 func printTable(w io.Writer, res contract.Result) error {

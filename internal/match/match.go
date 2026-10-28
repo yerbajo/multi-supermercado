@@ -73,6 +73,61 @@ func Tokens(s string) map[string]bool {
 	return out
 }
 
+// catalogueQuery is one rewrite from the words a shopper types to the words the shops are
+// allowed to print. It only fires when the query also carries one of the family words: a
+// rewrite on the bare word would drag «leche entera» into the plant-drink catalogue.
+type catalogueQuery struct {
+	typed  string
+	prints string
+	family []string
+}
+
+// catalogueQueries is the whole synonym table, and it is deliberately tiny. EU Regulation
+// 1308/2013 reserves «leche» for dairy, so no catalogue may call a plant drink «leche»: it
+// prints «bebida de soja». Shoppers keep typing the forbidden word. Only rewrites the law
+// forces are here — a wrong expansion is worse than a missing one, so no brand maps and no
+// fuzzy synonyms («nata»/«crema») — and a new family is one more row.
+var catalogueQueries = []catalogueQuery{
+	{typed: "leche", prints: "bebida", family: []string{"soja", "avena", "arroz", "almendra", "coco", "avellana"}},
+}
+
+// Variants returns the query as typed, followed by the catalogue form of it when the query
+// hits one of the rewrites above: «leche de soja» → «bebida de soja». A query already in
+// catalogue form is returned alone, so asking the variants never loops.
+func Variants(query string) []string {
+	words := strings.Fields(query)
+	tokens := Tokens(query)
+	out := []string{query}
+	for _, q := range catalogueQueries {
+		if !tokens[q.typed] || !containsAnyToken(tokens, q.family) {
+			continue
+		}
+		rewritten := make([]string, len(words))
+		changed := false
+		for i, w := range words {
+			if Normalise(w) == q.typed {
+				rewritten[i] = q.prints
+				changed = true
+				continue
+			}
+			rewritten[i] = w
+		}
+		if changed {
+			out = append(out, strings.Join(rewritten, " "))
+		}
+	}
+	return out
+}
+
+func containsAnyToken(tokens map[string]bool, words []string) bool {
+	for _, w := range words {
+		if tokens[w] {
+			return true
+		}
+	}
+	return false
+}
+
 // Coverage is how many of the query's tokens appear in name, and how many tokens the
 // query has. A query of nothing but function words has no tokens, so every candidate
 // covers 0 of 0 and the caller keeps the chain's own order.
@@ -92,14 +147,36 @@ func Coverage(query, name string) (covered, total int) {
 // nothing covers the query comes back untouched. Zero-coverage hits are kept, never
 // dropped: a chain that has nothing relevant is still better asked than emptied.
 func Rank(query string, hits []contract.Hit) []contract.Hit {
+	return rankBy(hits, func(name string) int {
+		covered, _ := Coverage(query, name)
+		return covered
+	})
+}
+
+// RankVariants is Rank for a query and its catalogue forms: each hit is scored by its best
+// coverage of any variant, so a name carrying every word of «bebida de soja» outranks one
+// carrying only «soja» from the form the shopper typed.
+func RankVariants(variants []string, hits []contract.Hit) []contract.Hit {
+	return rankBy(hits, func(name string) int {
+		best := 0
+		for _, v := range variants {
+			if covered, _ := Coverage(v, name); covered > best {
+				best = covered
+			}
+		}
+		return best
+	})
+}
+
+// rankBy stable-sorts hits by descending relevance without touching the caller's slice.
+func rankBy(hits []contract.Hit, covered func(name string) int) []contract.Hit {
 	type scored struct {
 		hit     contract.Hit
 		covered int
 	}
 	ranked := make([]scored, len(hits))
 	for i, h := range hits {
-		covered, _ := Coverage(query, h.Name)
-		ranked[i] = scored{hit: h, covered: covered}
+		ranked[i] = scored{hit: h, covered: covered(h.Name)}
 	}
 	sort.SliceStable(ranked, func(i, j int) bool { return ranked[i].covered > ranked[j].covered })
 

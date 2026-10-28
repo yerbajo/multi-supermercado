@@ -217,10 +217,8 @@ type Chain struct {
 // chain in the order given. A chain that fails or overruns timeout is reported in its
 // own entry and never cancels the others: a partial answer beats no answer.
 //
-// Each chain is asked for more hits than the caller wants (overfetch), and its answer is
-// ordered by how much of the query each product name covers — every word, then some, then
-// none — before being cut to limit. A chain whose whole answer covers nothing keeps its
-// own order: junk beats an empty answer when the chain has nothing relevant.
+// Each chain is asked for more hits than the caller wants (overfetch) and the per-chain
+// work is Search, so the single-chain binaries ask exactly the way the fan-out does.
 //
 // The deadline is enforced through ctx, which every chain client hands to net/http.
 func Find(ctx context.Context, query string, limit int, timeout time.Duration, chains []Chain) Result {
@@ -232,23 +230,9 @@ func Find(ctx context.Context, query string, limit int, timeout time.Duration, c
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			// One context per chain: one chain's deadline must not take the rest down.
-			cctx, cancel := context.WithTimeout(ctx, timeout)
-			defer cancel()
-
-			start := time.Now()
-			got, err := c.Searcher.Search(cctx, query, ask)
-			out := StoreResult{
-				Store:     c.Store,
-				ElapsedMs: time.Since(start).Milliseconds(),
-				Hits:      []contract.Hit{},
-			}
-			if err != nil {
-				out.Error = Classify(err)
-			} else if got.Hits != nil {
-				out.Hits = cut(match.Rank(query, got.Hits), limit)
-				out.Count = len(out.Hits)
-			}
+			out := Search(ctx, c, query, ask, timeout)
+			out.Hits = cut(out.Hits, limit)
+			out.Count = len(out.Hits)
 			res.Results[i] = out
 		}()
 	}
@@ -258,6 +242,82 @@ func Find(ctx context.Context, query string, limit int, timeout time.Duration, c
 		res.Count += r.Count
 	}
 	return res
+}
+
+// Search asks one chain for term and, when the catalogue spells it differently, for each
+// variant of it (match.Variants) at the same time. The answers are merged by hit ID keeping
+// the first occurrence, ranked by each name's best coverage of any form — so a name
+// carrying every word of «bebida de soja» outranks one carrying only «soja» from the form
+// the shopper typed — and cut to limit. A chain whose whole answer covers nothing keeps its
+// own order: junk beats an empty answer when the chain has nothing relevant.
+//
+// Every query is asked for limit rows: the caller owns the page size, so a caller that
+// paginates (mas search --page) is not disturbed by the expansion.
+//
+// The typed query alone decides the chain's health. A variant that fails is a silent miss,
+// never a chain error: the expansion is a rescue, not a condition. A chain whose typed query
+// failed keeps its error even when a variant answered.
+func Search(ctx context.Context, c Chain, term string, limit int, timeout time.Duration) StoreResult {
+	variants := match.Variants(term)
+
+	start := time.Now()
+	answers, errs := askAll(ctx, c.Searcher, variants, limit, timeout)
+	out := StoreResult{
+		Store:     c.Store,
+		ElapsedMs: time.Since(start).Milliseconds(),
+		Hits:      []contract.Hit{},
+	}
+	if errs[0] != nil {
+		out.Error = Classify(errs[0])
+	} else if merged := merge(answers); merged != nil {
+		out.Hits = cut(match.RankVariants(variants, merged), limit)
+		out.Count = len(out.Hits)
+	}
+	return out
+}
+
+// askAll asks one chain for every variant at once. A timeout above zero gives each request
+// its own budget, so a slow variant cannot cancel the typed query; zero leaves the
+// deadline to the caller — a single-chain command has its client's own timeout.
+func askAll(ctx context.Context, s Searcher, terms []string, limit int, timeout time.Duration) ([]contract.Result, []error) {
+	answers := make([]contract.Result, len(terms))
+	errs := make([]error, len(terms))
+
+	var wg sync.WaitGroup
+	for i, term := range terms {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cctx, cancel := ctx, func() {}
+			if timeout > 0 {
+				cctx, cancel = context.WithTimeout(ctx, timeout)
+			}
+			defer cancel()
+			answers[i], errs[i] = s.Search(cctx, term, limit)
+		}()
+	}
+	wg.Wait()
+	return answers, errs
+}
+
+// merge concatenates the answers in order, keeping the first occurrence of each hit ID:
+// the same product can answer both the typed query and its catalogue form. A hit with no
+// ID cannot be identified, so it is never dropped.
+func merge(answers []contract.Result) []contract.Hit {
+	var out []contract.Hit
+	seen := make(map[string]bool)
+	for _, a := range answers {
+		for _, h := range a.Hits {
+			if h.ID != "" {
+				if seen[h.ID] {
+					continue
+				}
+				seen[h.ID] = true
+			}
+			out = append(out, h)
+		}
+	}
+	return out
 }
 
 // cut keeps the first limit hits, the caller's page size.

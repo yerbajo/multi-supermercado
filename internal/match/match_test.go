@@ -161,6 +161,66 @@ func TestRankKeepsTheOriginalOrderWhenNothingCovers(t *testing.T) {
 	}
 }
 
+// «leche de soja» must also be asked as «bebida de soja»: the catalogue may not call a
+// plant drink «leche». Every plant of the family is covered.
+func TestVariantsAddsTheCatalogueFormOfPlantDrinks(t *testing.T) {
+	for _, plant := range []string{"soja", "avena", "arroz", "almendra", "coco", "avellana"} {
+		query := "leche de " + plant
+		got := Variants(query)
+		want := []string{query, "bebida de " + plant}
+		if len(got) != len(want) {
+			t.Fatalf("Variants(%q) = %v, want %v", query, got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Fatalf("Variants(%q) = %v, want %v", query, got, want)
+			}
+		}
+	}
+}
+
+// Everything outside the family is left alone, and the expansion never chained: the
+// catalogue form is already the catalogue form, so asking it again would loop.
+func TestVariantsLeavesEveryOtherQueryAlone(t *testing.T) {
+	for _, query := range []string{
+		"leche entera",
+		"leche",
+		"bebida de soja",
+		"bebida soja con calcio IFA",
+		"soja texturizada",
+		"leche de vaca",
+		"",
+	} {
+		if got := Variants(query); len(got) != 1 || got[0] != query {
+			t.Errorf("Variants(%q) = %v, want just the original", query, got)
+		}
+	}
+}
+
+// A hit fully covering the catalogue form outranks one covering a single word of the
+// form the shopper typed, and the order stays stable inside a tier.
+func TestRankVariantsUsesTheBestCoverageOfAnyVariant(t *testing.T) {
+	hits := []contract.Hit{
+		hit("1", "Bebida de arroz sin azucar"),
+		hit("2", "Salsa de soja KIKKOMAN 150ml"),
+		hit("3", "Bebida soja con calcio IFA ELIGES 1l"),
+		hit("4", "Soja texturizada 500g"),
+	}
+
+	got := names(RankVariants([]string{"leche de soja", "bebida de soja"}, hits))
+	want := []string{
+		"Bebida soja con calcio IFA ELIGES 1l", // 2/2 of «bebida de soja»
+		"Bebida de arroz sin azucar",           // 1/2, first of its tier
+		"Salsa de soja KIKKOMAN 150ml",         // 1/2
+		"Soja texturizada 500g",                // 1/2
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("ranked order = %v, want %v", got, want)
+		}
+	}
+}
+
 // One word still ranks: the names carrying it come first, in the order they had.
 func TestRankWithASingleWord(t *testing.T) {
 	hits := []contract.Hit{
