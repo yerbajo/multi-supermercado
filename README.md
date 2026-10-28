@@ -3,14 +3,16 @@
 Seis binarios, uno por cadena de supermercados, que convierten el catálogo de cada tienda en
 **un mismo objeto JSON**.
 
-El producto es una **cesta virtual**: el usuario elige los artículos que quiere y el sistema le
-dice **cuánto le costaría esa cesta en cada supermercado y qué le faltaría en cada uno**, para
-que decida dónde comprar. La cesta de la tienda —la de verdad, la que se paga— es solo el
-**paso de entrega** de la cadena elegida, no el objetivo.
+El producto es un agregador con web: se busca un producto, se ve qué cuesta en cada cadena, y
+cada artículo que eliges **entra en la cesta de su supermercado y solo en la suya**. No hay una
+cesta única que las seis intenten cubrir, porque un producto de MAS no es el mismo producto que
+el equivalente de DIA: lo que hay es **una cesta por supermercado con su propio total**. La
+cesta real de la tienda —la que se paga— es el **paso de entrega** de la cadena elegida.
 
 ```
 multisuper find   leche          → qué hay y a qué precio en las seis cadenas
-multisuper basket -f cesta.json  → cuánto costaría TU cesta en cada una
+multisuper basket -f cesta.json  → el total de la cesta de cada supermercado
+cmd/web                          → la web: buscar, elegir producto por cadena, ver tu cesta
 <cadena> cart                     → llenar la cesta real de la cadena elegida
 ```
 
@@ -60,30 +62,54 @@ multisuper basket -f cesta.json --json
 ```
 
 Entrada: `{"items":[{"query":"leche entera","quantity":2}]}`, o `-f -` por stdin.
-Salida: por cadena, **total en céntimos enteros** (nunca flotantes), cobertura (`3/3`), los
-artículos que **faltan** y, cuando la consulta falló, su código de error. El campo `ranking`
-contiene **solo las cadenas que cubren la cesta completa**, de más barata a más cara: si
-ninguna la cubre, el ranking va vacío y el comando sale con `1`. Eso es una respuesta, no un
-fallo.
+Salida: por cadena, **total en céntimos enteros** (nunca flotantes) y los artículos que
+**faltan**. Un artículo sin cadena se resuelve automáticamente en las que puedan servirlo;
+un artículo **fijado** (`{"line":"…","store":"dia","id":"…","name":"…"}`) pertenece a esa
+cadena y a ninguna otra, que es lo que envía la web.
 
-La primera pasada real, con leche entera + pan de molde + huevos: **DIA 4,17 €**, MAS 4,38 €,
-ALDI 4,88 €; LIDL no tenía leche entera; ALCAMPO estaba en ventana de WAF y CARREFOUR sin
-cuota.
+La primera pasada real, con leche entera + pan de molde + huevos, dio DIA 4,17 € frente a MAS
+4,38 € y ALDI 4,88 €. Sirve para ver de qué orden son las diferencias, no para afirmar cuál
+es más barata: cada cadena vende marcas y formatos distintos.
 
 **El emparejamiento es una propuesta, no una verdad.** Con nombres de una sola palabra el
-algoritmo confunde categorías: en esa misma pasada «huevos» se resolvió como *huevos de
-chocolate* en ALDI y como un *cuecehuevos* en LIDL, y con huevos de verdad ALDI habría
-ganado. Por eso el comando ofrece candidatos puntuados por artículo y la cesta acepta la
-elección explícita del usuario:
+algoritmo confunde categorías: «huevos» se resolvió como *huevos de chocolate* en ALDI y como
+un *cuecehuevos* en LIDL. Por eso `basket candidates` devuelve candidatos puntuados y la cesta
+acepta la elección explícita; en la web, un producto solo entra desde la fila de su cadena.
+Una entrada fijada se resuelve **confirmando el id exacto**; si no aparece, esa cadena responde
+`stale`. Nunca se sustituye por otro producto: un total equivocado es peor que un total ausente.
 
-```json
-{"items":[{"store":"dia","id":"305802","name":"Huevos extragrandes L/XL ... Dia 6 unidades","quantity":2}]}
+## La web
+
+```bash
+go run ./cmd/web -addr 127.0.0.1:8099
 ```
 
-Una entrada fijada se resuelve **confirmando el id exacto**; si no aparece, esa cadena
-responde `stale` (el producto existe para el usuario pero hoy no se puede confirmar) y queda
-fuera del ranking. Nunca se sustituye por otro producto: un total equivocado es peor que un
-total ausente.
+Sirve la interfaz y una API JSON pequeña, todo desde el mismo binario (sin CDN, sin fuentes
+remotas): `/api/caps`, `/api/search`, `/api/candidates`, `/api/basket` y `/api/cart/dia`.
+Caché de 60 s por consulta con `?fresh=1` para el reintento, porque Carrefour tiene 3
+peticiones por minuto y Alcampo cierra la puerta con WAF.
+
+La interfaz expresa el producto tal como es: **código postal y tiendas primero**, cada cadena
+diciendo qué hace con tu zona (solo DIA reprecia; ALDI distingue región; MAS y LIDL localizan
+tienda sin cambiar precio; ALCAMPO y CARREFOUR no permiten fijar nada y por eso **no muestran
+selector**). Después, búsqueda con el icono de cesta en cada fila: pulsarlo añade ese producto a
+la cesta de **esa** cadena. La cesta se lee supermercado a supermercado, con el subtotal de cada
+uno, y los productos elegidos van marcados como tales.
+
+## Relevancia y vocabulario
+
+Dos correcciones que el catálogo de las tiendas obliga a hacer, y que no son cosmética:
+
+- **Cobertura de términos.** Con una consulta de dos palabras, primero los resultados que las
+  contienen **todas**, después los que contienen alguna. Para que haya donde elegir se piden
+  tres veces más resultados de los que se muestran. Si una cadena no tiene nada relevante, se
+  queda con su propio orden antes que devolver una lista vacía: un enjuague bucal es malo, una
+  lista vacía hace creer que la tienda no vende leche.
+- **Sinónimos de catálogo.** La normativa prohíbe llamar «leche» a una bebida vegetal, así que
+  «leche de soja» se busca **también** como «bebida de soja». Solo para esa familia
+  (soja, avena, arroz, almendra, coco, avellana): una expansión equivocada es peor que una que
+  falta. Solo MAS necesitaba la expansión; DIA, ALDI y ALCAMPO ya devolvían bebidas, y LIDL
+  devuelve basura con cualquier forma de la consulta.
 
 ## Cestas de tienda (paso de entrega)
 
@@ -250,11 +276,14 @@ falsas de este README).
 | `alcampo` | Ventanas de `202 challenge` de AWS WAF tras varias peticiones seguidas. |
 | `carrefour` | Depende de una API de terceros gratuita, con su cuota y su latencia (arranque en frío ~9 s). |
 | `aldi`, `lidl` | Credenciales/parámetros que pueden rotar; fallan con error explícito si eso pasa. |
-| `mas` | Sin €/unidad (no publica tamaño) y sin `brand`/`category`/`image` en la respuesta actual. |
+| `mas` | Sin €/unidad: no publica tamaño de venta, y el parser que lo deducía del nombre publicaba `0,09 €/L` para una bolsa de basura de 30 litros. Tampoco devuelve `brand` ni `image`; la categoría se pide desde CYC-05 y es la puerta para recuperar el €/unidad con criterio. |
+| `lidl` | Su buscador devuelve resultados sin relación con la consulta incluso para términos que sí vende («leche entera» → chocolate, lacón, enjuague bucal). El ranking los manda al final; la decisión sobre no mostrarlos está pendiente. |
 | `aldi`, `lidl` | Publican el tamaño de venta como texto (`salesUnit`, `packaging.text`) y hoy no se expone en `size`: es la mejora más barata para ellas. |
 | `carrefour` | Superfudis devolvió `500 basket_comparison_failed` en una llamada y 200 al reintentar; y agotó su cuota de 3/min en la primera prueba real del agregador. El `ean` depende de un tercero intermitente. |
 | `mas` (cesta) | El carrito GraphQL lee, vacía y olvida el id, pero `addProductsToCart` es rechazado para todo SKU (`UNDEFINED: La cantidad solicitada no está disponible`): su canal de venta no expone inventario por GraphQL y la propia tienda añade con un **POST de formulario** a `/checkout/cart/add`. Esa vía exige `form_key` y cookies de sesión: pendiente. |
 | `dia` (cesta) | El `total` es el subtotal de artículos, sin envío (DIA publica 14,95 € aparte, con 4,99 € de envío). La lectura de líneas vive bajo `api/v1/checkout-back/cart/reduced` porque es el único payload que las trae: es un GET, sin mutación ni pedido. DIA aplica su propio tope por línea (`20000` unidades → «solo 6 en stock» aunque la búsqueda diga 8564): el CLI repite su mensaje, nunca calcula el suyo. |
+| cesta virtual | Una línea **pertenece a una cadena**: la web solo envía entradas fijadas. Un artículo añadido desde MAS no aparece en DIA ni al revés, así que no existe «la cadena más barata para tu cesta completa»; hay un total por supermercado, y mover un artículo a otra cadena es una acción manual (quitar y volver a añadir). |
+| cesta virtual | El payload sigue calculando `coverage` y `ranking` que la web ya no lee, porque nacieron para el modelo anterior de cesta única. Es deuda pendiente de limpieza, no un dato que el consumidor deba usar. |
 | cestas | Solo posibles donde hay venta online: `dia` **funciona**; `mas` solo lee; `lidl` y `alcampo` por verificar. **ALDI no vende online** y **Carrefour está bloqueado** (y Superfudis no gestiona cestas): esas dos nunca tendrán cesta, solo precio. |
 
 ## Origen
