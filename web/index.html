@@ -10,6 +10,37 @@
 <body>
 <a class="skip" href="#main">Ir a las tiendas</a>
 
+<!-- Brand marks: one <symbol> per chain, drawn here so every instance is a <use> of local
+     markup. No file, no URL, no web font: the wordmarks are shapes plus the system font
+     stack that text inherits from the .logo element. -->
+<svg class="sprite" aria-hidden="true" focusable="false" width="0" height="0">
+  <symbol id="logo-alcampo">
+    <rect x="0.5" y="0.5" width="71" height="23" rx="4" fill="#FFFDF8" stroke="#8A7E6E"/>
+    <text x="36" y="16.2" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="9.6" font-weight="800" letter-spacing="0.3" fill="#D3202A" textLength="60" lengthAdjust="spacingAndGlyphs">ALCAMPO</text>
+  </symbol>
+  <symbol id="logo-aldi">
+    <rect width="72" height="24" rx="4" fill="#001E64"/>
+    <text x="36" y="16.3" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="10.5" font-weight="800" letter-spacing="0.8" fill="#FFFFFF">ALDI</text>
+  </symbol>
+  <symbol id="logo-carrefour">
+    <rect x="0.5" y="0.5" width="71" height="23" rx="4" fill="#FFFDF8" stroke="#8A7E6E"/>
+    <path d="M7 8.6 13 12 7 15.4Z" fill="#E30613"/>
+    <text x="15" y="16.1" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="9.2" font-weight="800" letter-spacing="0.1" fill="#004E9E" textLength="51" lengthAdjust="spacingAndGlyphs">CARREFOUR</text>
+  </symbol>
+  <symbol id="logo-dia">
+    <rect width="72" height="24" rx="4" fill="#C4121F"/>
+    <text x="36" y="16.4" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="11" font-weight="800" letter-spacing="0.6" fill="#FFFFFF">DIA</text>
+  </symbol>
+  <symbol id="logo-lidl">
+    <rect x="0.5" y="0.5" width="71" height="23" rx="4" fill="#FFF000" stroke="#0050AA"/>
+    <text x="36" y="16.2" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="10.6" font-weight="800" letter-spacing="0.6" fill="#0050AA" textLength="34" lengthAdjust="spacingAndGlyphs">LIDL</text>
+  </symbol>
+  <symbol id="logo-mas">
+    <rect x="0.5" y="0.5" width="71" height="23" rx="4" fill="#FFFDF8" stroke="#8A7E6E"/>
+    <text x="36" y="16.4" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="11" font-weight="800" letter-spacing="1" fill="#B3121B">MAS</text>
+  </symbol>
+</svg>
+
 <header class="topbar">
   <p class="brand">
     <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -106,11 +137,22 @@
       <p class="rec-meta" id="rec-meta"></p>
     </div>
 
+    <div class="empty-state" id="comp-empty" hidden>
+      <span class="empty-icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.4"/><path d="M10 6v4.4" stroke="currentColor" stroke-width="1.4"/><path d="M10 13.4v.6" stroke="currentColor" stroke-width="1.8"/></svg>
+      </span>
+      <div>
+        <p class="empty-text" id="comp-empty-text"></p>
+        <button class="btn btn-quiet btn-small" type="button" id="comp-empty-retry" data-retry="basket" hidden>Reintentar la comparación</button>
+      </div>
+    </div>
+
     <ol class="rank" id="rank"></ol>
+    <p class="fail-line" id="comp-fail" hidden></p>
     <p class="fine" id="comp-note" hidden></p>
 
     <h3 class="down-h" id="down-h">Sin total hoy</h3>
-    <p class="sub" id="down-sub">Ninguna de estas cadenas compite en el ranking, y ninguna cancela la comparación. Un total ausente es mejor que un total inventado.</p>
+    <p class="sub" id="down-sub">Estas cadenas sí contestaron, pero no cubren todas las líneas. Ninguna cancela la comparación: un total ausente es mejor que un total inventado.</p>
     <ul class="down" id="down"></ul>
 
     <p class="sr" role="status" aria-live="polite" id="live"></p>

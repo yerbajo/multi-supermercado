@@ -29,19 +29,27 @@ const MODE_LABEL = {
 const MODE_TAG = {
   warehouse: "tag-ok", pickup: "tag", region: "tag-warn", none: "tag",
 };
-const ERROR_TEXT = {
-  quota: "sin cuota ahora mismo: la cadena limita las consultas",
-  timeout: "no contestó a tiempo",
-  blocked: "bloqueó la consulta",
-  network: "no se pudo conectar",
-  parse: "devolvió algo que no se pudo leer",
-  unknown: "no devolvió datos",
-};
 const ICON = {
   check: '<svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 6.4 4.8 9.2 10 3.2" stroke="currentColor" stroke-width="2"/></svg>',
   warn: '<svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="6" r="4.6" stroke="currentColor" stroke-width="1.5"/><path d="M6 3.6v2.8" stroke="currentColor" stroke-width="1.5"/><path d="M6 8.2v.3" stroke="currentColor" stroke-width="1.7"/></svg>',
   x: '<svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true"><circle cx="6" cy="6" r="4.6" stroke="currentColor" stroke-width="1.5"/><path d="M3.9 3.9l4.2 4.2M8.1 3.9 3.9 8.1" stroke="currentColor" stroke-width="1.5"/></svg>',
 };
+
+// One brand mark per chain, instantiated from the sprite in index.html. The mark is the
+// chain's accessible name wherever it replaces the word: role="img" plus aria-label.
+// It carries its own chip, so it reads on the light cards and on the dark recommendation.
+function logo(store, extra) {
+  return `<svg class="logo${extra ? " " + extra : ""}" viewBox="0 0 72 24" role="img" aria-label="${esc(nameOf(store))}" focusable="false"><use href="#logo-${esc(store)}"></use></svg>`;
+}
+
+// A chain that did not answer keeps its reason in two words: the compact line under the
+// comparison names it, so a failure is quieter, never hidden (S13).
+const SHORT_ERROR = {
+  quota: "sin cuota", timeout: "sin respuesta", blocked: "bloqueada",
+  network: "sin conexión", parse: "respuesta ilegible", unknown: "sin respuesta",
+};
+const SOFT_ERROR = new Set(["quota", "parse"]);
+
 
 const state = {
   cp: "",
@@ -120,7 +128,7 @@ function shopCard(cap) {
   const label = pickable ? "Usar esta tienda" : "Sin tienda que elegir";
   const body = `
       <span class="shop-check">${control}<span class="lab">${label}</span></span>
-      <span class="shop-name"><span class="nm">${name}</span><span class="dist">${esc(zoneShort(zone))}</span></span>
+      <span class="shop-name">${logo(cap.store)}<span class="dist">${esc(zoneShort(zone))}</span></span>
       <span class="addr">${esc(STORE_HINT[cap.store] || "Sin tienda en el modelo")}</span>
       <span class="cap">${esc(zoneText(zone))}</span>`;
   li.innerHTML = (pickable ? `<label class="shop-label">${body}</label>` : `<span class="shop-label">${body}</span>`) +
@@ -187,20 +195,26 @@ $("cp").addEventListener("input", () => { $("cp-status").textContent = ""; });
 // fresh skips the server's 60 s cache: that is what «reintentar» means, since a cached
 // failure would otherwise replay the same answer.
 async function runSearch(term, fresh) {
+  const hits = $("hits");
   $("search-status").textContent = "Buscando «" + term + "» en las seis cadenas…";
+  hits.innerHTML = skeletonRows(3, "hit");
+  hits.setAttribute("aria-busy", "true");
   try {
     const doc = await api("/api/search" + (fresh ? "?fresh=1" : ""), { term: term, limit: 5 });
     state.lastTerm = term;
     renderHits(doc, term);
   } catch (err) {
-    $("hits").innerHTML = "";
+    hits.innerHTML = "";
     $("search-status").textContent = "No se pudo buscar: " + err.message + " · reintentar más abajo.";
+  } finally {
+    hits.removeAttribute("aria-busy");
   }
 }
 
 function renderHits(doc, term) {
   const hits = $("hits");
   hits.innerHTML = "";
+  const failed = doc.results.filter((r) => r.error).map(failureOf);
   const answered = doc.results.filter((r) => !r.error);
   $("search-status").textContent = doc.count + (doc.count === 1 ? " resultado" : " resultados") +
     " en " + answered.length + " de " + doc.results.length + " cadenas para «" + term + "».";
@@ -210,7 +224,15 @@ function renderHits(doc, term) {
     bar.innerHTML = `<button class="btn btn-quiet btn-small" type="button" data-add="${esc(term)}">Añadir «${esc(term)}» a la cesta</button>`;
     hits.appendChild(bar);
   }
-  for (const r of doc.results) hits.appendChild(hitChain(r, term));
+  for (const r of answered) hits.appendChild(hitChain(r, term));
+  // A chain that did not answer is one compact line at the end, not a block that looks
+  // like a result: the same rule the comparison follows.
+  if (failed.length) {
+    const li = document.createElement("li");
+    li.className = "fail-line";
+    li.innerHTML = failBody(failed, "search");
+    hits.appendChild(li);
+  }
 }
 
 function hitChain(r, term) {
@@ -218,18 +240,13 @@ function hitChain(r, term) {
   const li = document.createElement("li");
   li.className = "hit-chain";
   li.dataset.chain = r.store;
-  if (r.error) {
-    li.innerHTML = `<div class="hit-head"><span class="nm">${name}</span>${errorTag(r.error)}</div>
-      <p class="hit-down">no disponible ahora · <button class="linkbtn" type="button" data-retry="search">reintentar</button></p>`;
-    return li;
-  }
   const products = r.hits.slice(0, 3).map((h) => `
     <li>
       <span class="pname">${esc(h.name)}${h.size ? " · " + esc(h.size) : ""}</span>
       <span class="pprice">${h.price == null ? "sin precio" : euros(h.price)}</span>
       <button class="btn btn-quiet btn-small" type="button" data-pin="${esc(r.store)}" data-id="${esc(h.id)}" data-name="${esc(h.name)}" data-term="${esc(term)}">Elegir en ${name}</button>
     </li>`).join("");
-  li.innerHTML = `<div class="hit-head"><span class="nm">${name}</span>
+  li.innerHTML = `<div class="hit-head">${logo(r.store)}
       <span class="tag">${r.count} ${r.count === 1 ? "resultado" : "resultados"}</span></div>
     <ul class="hit-products">${products || '<li class="hit-down">Sin resultados para este término.</li>'}</ul>`;
   return li;
@@ -418,6 +435,7 @@ function refresh(immediate, fresh) {
 
 async function recalc(fresh) {
   const seq = ++state.seq;
+  if (!state.basket) renderComparison();
   try {
     const doc = await api("/api/basket" + (fresh ? "?fresh=1" : ""), { items: basketItems() });
     if (seq !== state.seq) return;
@@ -450,21 +468,50 @@ async function ensureCandidates(fresh) {
   }
 }
 
-function errorTag(error) {
-  const map = {
-    quota: ["tag-warn", ICON.warn, "Sin cuota"],
-    timeout: ["tag-danger", ICON.x, "Sin respuesta"],
-    blocked: ["tag-danger", ICON.x, "Bloqueada"],
-    network: ["tag-danger", ICON.x, "Sin conexión"],
-    parse: ["tag-warn", ICON.warn, "Respuesta ilegible"],
-    unknown: ["tag-warn", ICON.warn, "Sin respuesta"],
-  };
-  const [cls, icon, text] = map[error.code] || map.unknown;
-  return `<span class="tag ${cls}">${icon}${text}</span>`;
+/* ---------------- failures and placeholders ---------------- */
+
+// One failure, reduced to the store and its stable code, so the compact line and the
+// page-level empty state say the same thing in two lengths.
+function failureOf(chain) {
+  return { store: chain.store, code: (chain.error && chain.error.code) || "unknown" };
+}
+
+const failWhy = (code) => SHORT_ERROR[code] || SHORT_ERROR.unknown;
+
+function failItems(list) {
+  return list.map((f) => {
+    const soft = SOFT_ERROR.has(f.code);
+    return `<span class="fail-item${soft ? " is-soft" : ""}">${soft ? ICON.warn : ICON.x}${nameOf(f.store)} <span class="fail-why">(${esc(failWhy(f.code))})</span></span>`;
+  }).join(", ");
+}
+
+function failPlain(list) {
+  return list.map((f) => nameOf(f.store) + " (" + failWhy(f.code) + ")").join(", ");
+}
+
+// The whole failure report: who did not answer, why, and the retry that skips the cache.
+function failBody(list, retry) {
+  const lead = list.length === 1 ? "1 cadena no respondió:" : list.length + " cadenas no respondieron:";
+  return `<span class="fail-lead">${lead}</span> ${failItems(list)} <span class="fail-sep" aria-hidden="true">·</span> <button class="linkbtn" type="button" data-retry="${retry}">reintentar</button>`;
+}
+
+// Skeletons are decorative: aria-busy on the container already announces the wait, and
+// the pulse only runs when the visitor has not asked for reduced motion.
+function skeletonRows(n, kind) {
+  const row = kind === "rank"
+    ? '<span class="sk sk-logo"></span><span class="sk sk-line"></span><span class="sk sk-val"></span>'
+    : '<span class="sk sk-logo"></span><span class="sk sk-line"></span>';
+  return Array.from({ length: n }, () => `<li class="sk-row sk-${kind}" aria-hidden="true">${row}</li>`).join("");
 }
 
 function isDiscarded(store) {
   return PICKABLE.has(store) && !state.chosen[store];
+}
+
+function compEmpty(text, retry) {
+  $("comp-empty").hidden = false;
+  $("comp-empty-text").textContent = text;
+  $("comp-empty-retry").hidden = !retry;
 }
 
 function renderComparison() {
@@ -474,38 +521,56 @@ function renderComparison() {
   rank.innerHTML = "";
   down.innerHTML = "";
   $("comp-note").hidden = true;
+  $("comp-fail").hidden = true;
+  $("comp-fail").innerHTML = "";
+  $("comp-empty").hidden = true;
+  $("down-h").hidden = true;
+  $("down-sub").hidden = true;
 
-  $("down-h").hidden = !state.lines.length;
-  $("down-sub").hidden = !state.lines.length;
   if (!state.lines.length) {
     $("comp-meta").textContent = "Sin cesta todavía";
     rec.hidden = true;
-    down.innerHTML = '<li class="empty">Sin cesta no hay nada que comparar: añade una línea y vuelve.</li>';
+    compEmpty("Todavía no hay cesta: añade un artículo y las seis cadenas compiten por tu compra.", false);
     return;
   }
   if (!state.basket) {
-    $("comp-meta").textContent = "Comparando…";
     rec.hidden = true;
-    down.innerHTML = '<li class="empty">' + (state.basketError
-      ? "No se pudo comparar: " + esc(state.basketError)
-      : "Comparando en las seis cadenas…") + "</li>";
+    $("comp-meta").textContent = "Comparando…";
+    if (state.basketError) {
+      compEmpty("No se pudo comparar: " + state.basketError + ". Reintenta: la comparación no inventa precios.", true);
+    } else {
+      rank.setAttribute("aria-busy", "true");
+      rank.innerHTML = skeletonRows(3, "rank");
+    }
     return;
   }
+  rank.removeAttribute("aria-busy");
 
   const basket = state.basket;
+  const failed = basket.chains.filter((c) => c.error).map(failureOf);
+  const answered = basket.chains.filter((c) => !c.error);
   const units = state.lines.reduce((n, l) => n + l.quantity, 0);
   const complete = basket.ranking.length;
-  const broken = basket.chains.filter((c) => c.error).length;
   $("comp-meta").textContent = state.lines.length + (state.lines.length === 1 ? " línea · " : " líneas · ") +
     units + (units === 1 ? " unidad · " : " unidades · ") +
     complete + (complete === 1 ? " cadena completa" : " cadenas completas") + " · " +
-    broken + (broken === 1 ? " caída" : " caídas");
+    failed.length + " sin respuesta";
+
+  // No chain answered at all: the comparison is empty for a stated reason, with a retry,
+  // instead of a blank panel that looks broken.
+  if (!answered.length) {
+    rec.hidden = true;
+    compEmpty("Hoy no respondió ninguna cadena: " + failPlain(failed) +
+      ". Reintenta en un minuto; la comparación no inventa precios ni existencias.", true);
+    announce("Ninguna cadena respondió a la cesta: " + failPlain(failed) + ".");
+    return;
+  }
 
   const best = basket.ranking.find((r) => !isDiscarded(r.store)) || null;
   if (best) {
     const rival = basket.ranking.find((r) => r.store !== best.store && !isDiscarded(r.store));
     rec.hidden = false;
-    $("rec-chain").textContent = nameOf(best.store);
+    $("rec-chain").innerHTML = logo(best.store);
     $("rec-total").textContent = money(best.totalCents);
     const coverage = state.lines.length === 1 ? "la única línea" : "las " + state.lines.length + " líneas";
     $("rec-meta").textContent = rival
@@ -517,49 +582,49 @@ function renderComparison() {
 
   // Every chain that covers the whole basket, cheapest first, with the delta against the
   // headline. A discarded store stays visible, struck through, instead of disappearing.
-  for (const r of basket.ranking) {
+  basket.ranking.forEach((r, i) => {
     const chain = basket.chains.find((c) => c.store === r.store);
-    if (!chain) continue;
+    if (!chain) return;
     const discarded = isDiscarded(r.store);
-    const delta = best && r.store === best.store ? "la más barata"
+    const isBest = Boolean(best && r.store === best.store);
+    const delta = isBest ? ICON.check + "la más barata"
       : best ? "+" + money(r.totalCents - best.totalCents) : "";
     const li = document.createElement("li");
-    li.className = "row" + (discarded ? " is-out" : "");
+    li.className = "row" + (discarded ? " is-out" : "") + (isBest ? " is-best" : "");
     li.dataset.chain = r.store;
-    li.innerHTML = `<span class="who"><span><span class="nm">${nameOf(r.store)}</span>
-        <span class="st">${discarded ? "tienda descartada" : esc(STORE_HINT[r.store] || "")}</span></span></span>
+    li.innerHTML = `<span class="pos" aria-hidden="true">${i + 1}</span>
+      <span class="who">${logo(r.store)}<span class="st">${discarded ? "tienda descartada" : esc(STORE_HINT[r.store] || "")}</span></span>
       <span class="cov">${esc(chain.coverage || "")}</span>
       <span class="val">${money(r.totalCents)}</span>
-      <span class="delta${best && r.store === best.store ? " is-best" : ""}">${delta}</span>`;
+      <span class="delta${isBest ? " is-best" : ""}">${delta}</span>`;
     rank.appendChild(li);
+  });
+
+  // Chains that did not answer: one compact line under the ranking, never a competitor row.
+  if (failed.length) {
+    const box = $("comp-fail");
+    box.hidden = false;
+    box.innerHTML = failBody(failed, "basket");
   }
 
-  // Chains without a total: one state each, never a colour without a word.
-  for (const chain of basket.chains) {
-    if (chain.error) {
+  // Chains that answered but do not cover the basket keep their own section.
+  const incomplete = answered.filter((c) => c.missing.length || c.stale.length);
+  if (incomplete.length) {
+    $("down-h").hidden = false;
+    $("down-sub").hidden = false;
+    for (const chain of incomplete) {
       const li = document.createElement("li");
       li.dataset.chain = chain.store;
-      li.innerHTML = `<span class="who"><span class="nm">${nameOf(chain.store)}</span>
-          <span class="why">${esc(ERROR_TEXT[chain.error.code] || ERROR_TEXT.unknown)}</span></span>
-        <span class="end">${errorTag(chain.error)}<button class="linkbtn" type="button" data-retry="basket">reintentar</button></span>`;
+      const why = [];
+      if (chain.missing.length) why.push("le falta " + chain.missing.join(", "));
+      if (chain.stale.length) why.push("sin confirmar " + chain.stale.join(", "));
+      li.innerHTML = `<span class="who">${logo(chain.store)}
+          <span class="why">${esc(chain.coverage || "")} · ${esc(why.join(" · "))}</span></span>
+        <span class="end">${chain.stale.length
+          ? '<span class="tag tag-warn">' + ICON.warn + "Sin confirmar</span>"
+          : '<span class="tag">' + ICON.warn + "Falta un artículo</span>"}</span>`;
       down.appendChild(li);
-      continue;
     }
-    if (!chain.missing.length && !chain.stale.length) continue;
-    const li = document.createElement("li");
-    li.dataset.chain = chain.store;
-    const why = [];
-    if (chain.missing.length) why.push("le falta " + chain.missing.join(", "));
-    if (chain.stale.length) why.push("sin confirmar " + chain.stale.join(", "));
-    li.innerHTML = `<span class="who"><span class="nm">${nameOf(chain.store)}</span>
-        <span class="why">${esc(chain.coverage || "")} · ${esc(why.join(" · "))}</span></span>
-      <span class="end">${chain.stale.length
-        ? '<span class="tag tag-warn">' + ICON.warn + "Sin confirmar</span>"
-        : '<span class="tag">' + ICON.warn + "Falta un artículo</span>"}</span>`;
-    down.appendChild(li);
-  }
-  if (!down.children.length) {
-    down.innerHTML = '<li class="empty">Hoy las seis cadenas responden a esta cesta.</li>';
   }
   if (basket.ranking.length && !best) {
     $("comp-note").hidden = false;
