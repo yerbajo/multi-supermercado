@@ -14,7 +14,7 @@ import (
 // The pinned entry a human writes after choosing from the candidate list (L7).
 const pinnedEggName = "Huevos extragrandes L/XL de gallinas criadas en suelo Dia 6 unidades"
 
-var pinnedEggs = Item{Store: "dia", ID: "305802", Name: pinnedEggName, Quantity: 2}
+var pinnedEggs = Item{Line: "huevos", Store: "dia", ID: "305802", Name: pinnedEggName, Quantity: 2}
 
 var sixStores = []string{"alcampo", "aldi", "carrefour", "dia", "lidl", "mas"}
 
@@ -111,8 +111,8 @@ func TestPricePinsAndAutomaticallyMatchesInTheSameBasket(t *testing.T) {
 		t.Errorf("ranking = %+v, want dia 540 only", res.Ranking)
 	}
 	// The pinned line carries the choice; the automatic line still carries its query.
-	if res.Items[0].Name != pinnedEggName || res.Items[0].ID != "305802" || res.Items[0].Store != "dia" {
-		t.Errorf("items[0] = %+v, want the pinned choice", res.Items[0])
+	if eggs := res.Items[0]; eggs.Line != "huevos" || eggs.Quantity != 2 || eggs.Resolved["dia"].ID != "305802" {
+		t.Errorf("items[0] = %+v, want the pinned huevos line resolved in dia", eggs)
 	}
 	if res.Items[1].Query != "leche entera" {
 		t.Errorf("items[1].Query = %q, want leche entera", res.Items[1].Query)
@@ -141,7 +141,7 @@ func TestPriceChainErrorBeatsStale(t *testing.T) {
 // Every broken pinned shape is a usage error with its own sentence.
 func TestDecodeRejectsInvalidPinnedItems(t *testing.T) {
 	ok := func(store, id, name string, qty int) string {
-		return fmt.Sprintf(`{"items":[{"store":%q,"id":%q,"name":%q,"quantity":%d}]}`, store, id, name, qty)
+		return fmt.Sprintf(`{"items":[{"line":"huevos","store":%q,"id":%q,"name":%q,"quantity":%d}]}`, store, id, name, qty)
 	}
 	tests := []struct {
 		name   string
@@ -153,7 +153,7 @@ func TestDecodeRejectsInvalidPinnedItems(t *testing.T) {
 		{"empty id", ok("dia", " ", "Huevos", 1), nil, "id is empty"},
 		{"empty name", ok("dia", "1", " ", 1), nil, "name is empty"},
 		{"zero quantity", ok("dia", "1", "Huevos", 0), nil, "quantity must be"},
-		{"query and choice", `{"items":[{"query":"huevos","store":"dia","id":"1","name":"Huevos","quantity":1}]}`, nil,
+		{"query and choice", `{"items":[{"query":"huevos","line":"huevos","store":"dia","id":"1","name":"Huevos","quantity":1}]}`, nil,
 			"either query or store"},
 		{"no item at all", `{"items":[{"quantity":1}]}`, nil, "query is empty"},
 		{"store not priced here", ok("dia", "1", "Huevos", 1), []string{"aldi", "lidl"}, `store "dia" is not one of`},
@@ -175,7 +175,7 @@ func TestDecodeRejectsInvalidPinnedItems(t *testing.T) {
 // A mixed basket decodes, trimmed, and keeps the item as the user wrote it.
 func TestDecodeAcceptsAMixedBasket(t *testing.T) {
 	in := `{"items":[{"query":" leche entera ","quantity":1},
-		{"store":" dia ","id":" 305802 ","name":" Huevos frescos 12 ud ","quantity":2}]}`
+		{"line":" huevos ","store":" dia ","id":" 305802 ","name":" Huevos frescos 12 ud ","quantity":2}]}`
 	got, err := Decode(strings.NewReader(in), sixStores)
 	if err != nil {
 		t.Fatalf("Decode: %v", err)
@@ -183,8 +183,8 @@ func TestDecodeAcceptsAMixedBasket(t *testing.T) {
 	if len(got.Items) != 2 {
 		t.Fatalf("items = %+v, want 2", got.Items)
 	}
-	if got.Items[0].Query != "leche entera" || got.Items[0].Pinned() {
-		t.Errorf("items[0] = %+v, want an automatic leche entera", got.Items[0])
+	if got.Items[0].Query != "leche entera" || got.Items[0].Pinned() || got.Items[0].Line != "leche entera" {
+		t.Errorf("items[0] = %+v, want an automatic leche entera on its own line", got.Items[0])
 	}
 	if w := got.Items[1]; w.Store != "dia" || w.ID != "305802" || w.Name != "Huevos frescos 12 ud" || !w.Pinned() {
 		t.Errorf("items[1] = %+v, want a trimmed pinned dia 305802", w)

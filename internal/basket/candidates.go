@@ -11,17 +11,22 @@ import (
 	"multisuper/internal/contract"
 )
 
-// Candidate is one product a chain proposes for an item: the id the user pastes back into
-// a pinned line, the name, the price published now, and how sure the match is.
+// Candidate is one product a chain proposes for a line: the id the user pastes back into a
+// pinned entry, the name, the price published now, how sure the match is, and whether it is
+// the product the line already holds in that chain.
 type Candidate struct {
 	ID        string  `json:"id"`
 	Name      string  `json:"name"`
 	UnitCents int64   `json:"unitCents"`
 	Score     float64 `json:"score"`
+	Current   bool    `json:"current,omitempty"`
 }
 
 // ItemCandidates is one basket line as a proposal: each chain's best n candidates for it.
+// Line is always present here, even for a plain automatic entry, because a candidate list is
+// read per line and per chain: it is the key the web groups the user's choices by.
 type ItemCandidates struct {
+	Line       string                 `json:"line,omitempty"`
 	Query      string                 `json:"query"`
 	Quantity   int                    `json:"quantity"`
 	Candidates map[string][]Candidate `json:"candidates"`
@@ -48,24 +53,29 @@ func EncodeCandidates(w io.Writer, r CandidatesResult) error {
 	return enc.Encode(r)
 }
 
-// Candidates asks every chain for its best n candidates per item, scored by the same
+// Candidates asks every chain for its best n candidates per line, scored by the same
 // function and ordered the same way as the basket's own pick, so a user who takes the
 // first candidate gets exactly what the automatic basket would have bought (L7).
 //
-// A pinned item has no query to search, so it is left out: the command rejects such a
-// basket instead of guessing what the name might mean.
+// A line that already holds a pinned entry in a chain proposes that chain's own product
+// first, marked as the current choice, so the user sees what the line holds today and can
+// change it. A chain without a pin falls back to the line's query, and a line with neither
+// has nothing to propose there.
 func Candidates(ctx context.Context, req Request, chains []aggregate.Chain, n int, timeout time.Duration) CandidatesResult {
 	if n < 1 {
 		n = DefaultProposals
 	}
+	// Decode rejected every broken line group before this runs.
+	lines, _ := req.lines()
 	res := CandidatesResult{
-		Items:  make([]ItemCandidates, len(req.Items)),
+		Items:  make([]ItemCandidates, len(lines)),
 		Chains: make([]ChainAnswer, len(chains)),
 	}
-	for i, it := range req.Items {
+	for i, l := range lines {
 		res.Items[i] = ItemCandidates{
-			Query:      it.Query,
-			Quantity:   it.Quantity,
+			Line:       l.id,
+			Query:      l.query,
+			Quantity:   l.quantity,
 			Candidates: make(map[string][]Candidate),
 		}
 	}
@@ -85,23 +95,29 @@ func Candidates(ctx context.Context, req Request, chains []aggregate.Chain, n in
 			start := time.Now()
 			cctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
-			a := answer{cands: make(map[int][]Candidate, len(req.Items))}
+			a := answer{cands: make(map[int][]Candidate, len(lines))}
 			defer func() {
 				a.elapsed = time.Since(start).Milliseconds()
 				answers[i] = a
 			}()
-			for j, it := range req.Items {
-				if it.Pinned() {
+			for j, l := range lines {
+				// The chain proposes around the product the line holds there, and around
+				// the line's query where it holds none.
+				term, pin, limit := l.query, "", DefaultCandidates
+				if p, ok := l.pinned[c.Store]; ok {
+					term, pin, limit = p.Name, p.ID, PinnedLimit
+				}
+				if term == "" {
 					continue
 				}
-				got, err := c.Searcher.Search(cctx, it.Query, DefaultCandidates)
+				got, err := c.Searcher.Search(cctx, term, limit)
 				if err != nil {
 					// One failed search drops the chain: a partial proposal would hide
-					// that this chain has nothing to say about the other items.
+					// that this chain has nothing to say about the other lines.
 					a.err = aggregate.Classify(err)
 					return
 				}
-				top := rank(it.Query, got.Hits)
+				top := currentFirst(rank(term, got.Hits), pin)
 				if len(top) > n {
 					top = top[:n]
 				}
@@ -127,12 +143,28 @@ func Candidates(ctx context.Context, req Request, chains []aggregate.Chain, n in
 	return res
 }
 
+// currentFirst puts the product the line already holds in this chain at the head of the
+// list, marked as the current choice, and leaves the order of the rest alone.
+func currentFirst(cands []Candidate, id string) []Candidate {
+	for k, c := range cands {
+		if c.ID != id {
+			continue
+		}
+		c.Current = true
+		out := make([]Candidate, 0, len(cands))
+		out = append(out, c)
+		out = append(out, cands[:k]...)
+		return append(out, cands[k+1:]...)
+	}
+	return cands
+}
+
 // pinnedOf confirms the id the user chose in the chain's live answer, and takes the price
 // published now. A matching id without a price cannot join a total, so it is not
 // confirmed; another product is never a substitute for the user's choice.
-func pinnedOf(hits []contract.Hit, it Item) (Resolved, bool) {
+func pinnedOf(hits []contract.Hit, id string, quantity int) (Resolved, bool) {
 	for _, h := range hits {
-		if h.ID != it.ID || h.Price == nil {
+		if h.ID != id || h.Price == nil {
 			continue
 		}
 		cents := Cents(*h.Price)
@@ -140,7 +172,7 @@ func pinnedOf(hits []contract.Hit, it Item) (Resolved, bool) {
 			ID:        h.ID,
 			Name:      h.Name,
 			UnitCents: cents,
-			LineCents: cents * int64(it.Quantity),
+			LineCents: cents * int64(quantity),
 		}, true
 	}
 	return Resolved{}, false

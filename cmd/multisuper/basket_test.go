@@ -479,8 +479,8 @@ func TestBasketCandidatesJSONListsScoredCandidates(t *testing.T) {
 	}
 }
 
-// --candidates is bounded like every other limit, and a pinned entry has no query to
-// search: both are usage errors, never a silent change of meaning.
+// --candidates is bounded like every other limit, and an entry that names no line cannot
+// be proposed: both are usage errors, never a silent change of meaning.
 func TestBasketCandidatesRejectsBadInput(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -494,8 +494,8 @@ func TestBasketCandidatesRejectsBadInput(t *testing.T) {
 			[]string{"--candidates", "11"}, "--candidates must be between 1 and 10"},
 		{"not a number", `{"items":[{"query":"huevos","quantity":1}]}`,
 			[]string{"--candidates", "muchos"}, "invalid value"},
-		{"pinned entry", `{"items":[{"store":"dia","id":"1","name":"Huevos","quantity":1}]}`,
-			nil, "candidates needs a query"},
+		{"pinned without a line", `{"items":[{"store":"dia","id":"1","name":"Huevos","quantity":1}]}`,
+			nil, "a pinned entry needs a line"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -525,12 +525,12 @@ const pinnedEggName = "Huevos frescos clase M 12 ud"
 // pinnedBasket mixes one automatic line with one line the user chose by id.
 const pinnedBasket = `{"items":[
 	{"query":"leche entera","quantity":1},
-	{"store":"aldi","id":"h9","name":"` + pinnedEggName + `","quantity":2}]}`
+	{"line":"huevos","store":"aldi","id":"h9","name":"` + pinnedEggName + `","quantity":2}]}`
 
 // pinnedDiaBasket is the same list with the eggs chosen at DIA.
 const pinnedDiaBasket = `{"items":[
 	{"query":"leche entera","quantity":1},
-	{"store":"dia","id":"h9","name":"` + pinnedEggName + `","quantity":2}]}`
+	{"line":"huevos","store":"dia","id":"h9","name":"` + pinnedEggName + `","quantity":2}]}`
 
 // A pinned id the chain no longer publishes is stale: the chain leaves the ranking with
 // the item in its stale list, and it never falls back to another product.

@@ -34,18 +34,30 @@ flags (basket candidates):
   --only S,...    ask only these chains
   --json          print the candidates JSON document instead of a table
 
-The basket file is the user's own list of goods, with two kinds of line, mixed freely:
+The basket file is the user's own list of goods, with two kinds of entry, mixed freely:
 
   {"items":[
     {"query":"leche entera","quantity":2},
-    {"store":"dia","id":"305802","name":"Huevos extragrandes L/XL ...","quantity":2}]}
+    {"line":"huevos","query":"huevos","quantity":2},
+    {"line":"huevos","store":"dia","id":"305802","name":"Huevos ... Dia 6 unidades","quantity":2},
+    {"line":"huevos","store":"mas","id":"116867","name":"Huevos frescos 12 ud","quantity":2}]}
 
-A line with a query is matched by name in every chain. A line with store/id/name is the
-product the user chose from "basket candidates": it is confirmed by its exact id in that
-chain, at the price the chain publishes now, and never by matching another product. If the
-id is not in that chain's answer today the chain reports the line as stale and leaves the
-ranking — a wrong product is worse than no total. A chain that failed keeps its error,
-which is not the same answer as stale.
+A query is matched by name in every chain. A store/id/name entry is a product the user
+chose from "basket candidates": it is confirmed by its exact id in that chain, at the price
+the chain publishes now, and never by matching another product. If the id is not in that
+chain's answer today the chain reports the line as stale and leaves the ranking — a wrong
+product is worse than no total. A chain that failed keeps its error, which is not the same
+answer as stale.
+
+line says which basket line an entry belongs to, so one line can hold a different chosen
+product per chain:
+
+  - an entry with a query and no line is its own line, named after the query;
+  - a chosen entry always needs a line, and every entry of a line shares one quantity;
+  - one line holds at most one chosen product per chain and at most one query;
+  - the query is the fallback for the chains the user has not chosen a product in.
+
+A basket written without line keys behaves exactly as before.
 
 The ranking holds only the chains that cover the whole basket, cheapest first.
 
@@ -164,13 +176,6 @@ func runCandidates(args []string, stdout, stderr io.Writer, all []aggregate.Chai
 		fmt.Fprintf(stderr, "multisuper basket candidates: %s\n", err)
 		return 2
 	}
-	for i, it := range req.Items {
-		if it.Pinned() {
-			fmt.Fprintf(stderr, "multisuper basket candidates: item %d (%s) is pinned; candidates needs a query\n",
-				i+1, it.Name)
-			return 2
-		}
-	}
 
 	res := basket.Candidates(context.Background(), req, selected, *n, *timeout)
 	if *asJSON {
@@ -248,8 +253,12 @@ func writeCandidatesTable(w io.Writer, res basket.CandidatesResult) error {
 	for _, it := range res.Items {
 		for _, c := range res.Chains {
 			for _, cand := range it.Candidates[c.Store] {
+				name := cand.Name
+				if cand.Current {
+					name += " (actual)"
+				}
 				fmt.Fprintf(tw, "%s\t%s\t%.2f\t%s\t%s\n",
-					it.Query, c.Store, cand.Score, money(cand.UnitCents), cand.Name)
+					it.Line, c.Store, cand.Score, money(cand.UnitCents), name)
 			}
 		}
 	}
