@@ -161,10 +161,11 @@ func (c *Client) Search(ctx context.Context, term string, limit int) (contract.R
 			Stock    int    `json:"units_in_stock"`
 			URL      string `json:"url"`
 			Prices   *struct {
-				Currency     string  `json:"currency"`
-				MeasureUnit  string  `json:"measure_unit"`
-				Price        float64 `json:"price"`
-				PricePerUnit float64 `json:"price_per_unit"`
+				Currency    string `json:"currency"`
+				MeasureUnit string `json:"measure_unit"`
+				// A nil price means DIA published a prices object without a price (S8).
+				Price        *float64 `json:"price"`
+				PricePerUnit float64  `json:"price_per_unit"`
 			} `json:"prices"`
 		} `json:"search_items"`
 	}
@@ -189,7 +190,9 @@ func (c *Client) Search(ctx context.Context, term string, limit int) (contract.R
 			hit.Price = p.Price
 			hit.PricePerUnit = p.PricePerUnit
 			hit.Unit = unit(p.MeasureUnit)
-			hit.Currency = p.Currency
+			if p.Price != nil {
+				hit.Currency = p.Currency
+			}
 		}
 		hits = append(hits, hit)
 	}

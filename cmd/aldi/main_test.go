@@ -5,11 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 
 	"multisuper/internal/contract"
 )
+
+func ptr(f float64) *float64 { return &f }
 
 // fake answers like the aldi client, so the command tests stay offline.
 type fake struct {
@@ -30,7 +33,7 @@ func sample() contract.Result {
 		Store: "aldi", Query: "leche", Count: 1,
 		Hits: []contract.Hit{{
 			Store: "aldi", ID: "80000", Name: "Leche entera", Brand: "MILSANI®",
-			Price: 0.96, PricePerUnit: 0.96, Unit: "L", Currency: "EUR",
+			Price: ptr(0.96), PricePerUnit: 0.96, Unit: "L", Currency: "EUR",
 			Available: true, Category: "Lácteos y huevos > Leche y bebidas vegetales",
 			URL:   "https://www.aldi.es/producto/leche-entera-80000.html",
 			Image: "https://s7g10.scene7.com/is/image/aldinord/800_pack",
@@ -100,6 +103,9 @@ func TestTableMarksAnUnpublishedPrice(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"search", "cogollos"}, &stdout, &stderr, &fake{res: res}); code != 0 {
 		t.Fatalf("exit = %d, stderr = %s", code, stderr.String())
+	}
+	if !regexp.MustCompile(`(?m)^998600\s+Cogollos\s+-\s+-\s+yes$`).MatchString(stdout.String()) {
+		t.Errorf("unpublished price must print - in the PRICE column:\n%s", stdout.String())
 	}
 	if strings.Contains(stdout.String(), "0.00") {
 		t.Errorf("unknown price must not render as 0.00:\n%s", stdout.String())

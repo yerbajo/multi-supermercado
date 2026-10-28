@@ -120,10 +120,10 @@ func writeTable(w io.Writer, res contract.Result) error {
 
 // price prints "-" when the catalogue publishes none: 0.00 € would read as free.
 func price(h contract.Hit) string {
-	if h.Price == 0 {
+	if h.Price == nil {
 		return "-"
 	}
-	return fmt.Sprintf("%.2f €", h.Price)
+	return fmt.Sprintf("%.2f €", *h.Price)
 }
 
 func perUnit(h contract.Hit) string {

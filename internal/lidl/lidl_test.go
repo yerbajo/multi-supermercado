@@ -12,6 +12,20 @@ import (
 	"multisuper/internal/contract"
 )
 
+func ptr(f float64) *float64 { return &f }
+
+// sameHit compares hits by value: Price is a pointer, so == would compare addresses.
+func sameHit(a, b contract.Hit) bool {
+	if (a.Price == nil) != (b.Price == nil) {
+		return false
+	}
+	if a.Price != nil && *a.Price != *b.Price {
+		return false
+	}
+	a.Price, b.Price = nil, nil
+	return a == b
+}
+
 func newServer(t *testing.T, handler http.HandlerFunc) (*Client, *httptest.Server) {
 	t.Helper()
 	srv := httptest.NewServer(handler)
@@ -87,7 +101,7 @@ func TestSearchMapsCapturedResponse(t *testing.T) {
 		ID:           "11001765",
 		Name:         "FIN CARRÉ Chocolate",
 		Brand:        "FIN CARRÉ",
-		Price:        0.85,
+		Price:        ptr(0.85),
 		PricePerUnit: 8.5,
 		Unit:         "kg",
 		Currency:     "EUR",
@@ -96,7 +110,7 @@ func TestSearchMapsCapturedResponse(t *testing.T) {
 		URL:          "https://www.lidl.es/p/fin-carre-chocolate/p11001765",
 		Image:        "https://www.lidl.es/assets/gcp98c0ffc034244b6ebf3b9c083019d401.png",
 	}
-	if res.Hits[0] != want {
+	if !sameHit(res.Hits[0], want) {
 		t.Fatalf("first hit = %+v\nwant       %+v", res.Hits[0], want)
 	}
 	// 1.29 € for 500 ml is 2.58 €/L.
@@ -105,9 +119,10 @@ func TestSearchMapsCapturedResponse(t *testing.T) {
 	}
 }
 
-// Lidl publishes no price at all for some in-store articles: the hit must keep a zero
-// price and an empty unit price instead of an estimate (S8).
-func TestSearchKeepsZeroPriceWhenLidlPublishesNone(t *testing.T) {
+// Lidl publishes no price at all for some in-store articles (only a Lidl Plus member
+// price, or none): the hit must carry no price and no currency instead of a zero that
+// reads as 0,00 € (S8).
+func TestSearchKeepsUnpublishedPriceEmpty(t *testing.T) {
 	fixture, err := os.ReadFile("testdata/search_leche_entera.json")
 	if err != nil {
 		t.Fatal(err)
@@ -122,11 +137,18 @@ func TestSearchKeepsZeroPriceWhenLidlPublishesNone(t *testing.T) {
 	if h.Name != "REALVALLE Lacón al horno" {
 		t.Fatalf("hit 1 = %+v", h)
 	}
-	if h.Price != 0 || h.PricePerUnit != 0 || h.Unit != "" {
-		t.Fatalf("unpriced hit = %+v, want zero price and no unit price", h)
+	if h.Price != nil || h.PricePerUnit != 0 || h.Unit != "" || h.Currency != "" {
+		t.Fatalf("unpriced hit = %+v, want no price and no unit price", h)
 	}
-	if h.Currency != "EUR" {
-		t.Fatalf("currency = %q, want the published EUR", h.Currency)
+
+	var buf strings.Builder
+	if err := contract.Encode(&buf, contract.Result{Store: "lidl", Query: "q", Hits: []contract.Hit{h}}); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	for _, key := range []string{`"price":`, `"currency":`} {
+		if strings.Contains(buf.String(), key) {
+			t.Errorf("unpriced hit must omit %s:\n%s", key, buf.String())
+		}
 	}
 }
 
@@ -144,7 +166,7 @@ func TestSearchLeavesUnitPriceEmptyWithoutPublishedSize(t *testing.T) {
 		t.Fatalf("Search: %v", err)
 	}
 	h := res.Hits[8]
-	if h.Name != "GELATELLI Helado almendrado" || h.Price != 2.65 {
+	if h.Name != "GELATELLI Helado almendrado" || h.Price == nil || *h.Price != 2.65 {
 		t.Fatalf("hit 8 = %+v", h)
 	}
 	if h.PricePerUnit != 0 || h.Unit != "" {

@@ -88,7 +88,7 @@ func TestSearchMapsCapturedResponse(t *testing.T) {
 		ID:        "8410297110979",
 		Name:      "Leche entera Central Lechera Asturiana botella 2,2 l.",
 		Brand:     "central lechera asturiana",
-		Price:     2.75,
+		Price:     ptr(2.75),
 		Currency:  "EUR",
 		Available: true,
 		// 2,75 € for 2200 ml is 1,25 €/L, derived from the published sizes only.
@@ -98,8 +98,40 @@ func TestSearchMapsCapturedResponse(t *testing.T) {
 		// it, so the offer stays reachable without us fetching the blocked site.
 		URL: "https://www.carrefour.es/supermercado/leche-entera-central-lechera-asturiana-botella-22-l/R-785113055/p",
 	}
-	if res.Hits[0] != want {
+	if !sameHit(res.Hits[0], want) {
 		t.Fatalf("hit = %+v\nwant  %+v", res.Hits[0], want)
+	}
+}
+
+// sameHit compares hits by value: Price is a pointer, so == would compare addresses.
+func sameHit(a, b contract.Hit) bool {
+	if (a.Price == nil) != (b.Price == nil) {
+		return false
+	}
+	if a.Price != nil && *a.Price != *b.Price {
+		return false
+	}
+	a.Price, b.Price = nil, nil
+	return a == b
+}
+
+// S8: an offer Superfudis reports without price_eur must omit both keys instead of
+// serialising 0,00 €.
+func TestSearchOmitsAnUnpublishedPrice(t *testing.T) {
+	body := `{"status":"ok","items":[{"query":"leche","offers":[{"retailer":"Carrefour","name":"A","ean":"1","match_type":"exact_ean"}]}]}`
+	c, _ := newServer(t, func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(body)) })
+	res, err := c.Search(context.Background(), "leche entera", 20)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	var buf strings.Builder
+	if err := contract.Encode(&buf, res); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	for _, key := range []string{`"price":`, `"currency":`} {
+		if strings.Contains(buf.String(), key) {
+			t.Errorf("unpriced hit must omit %s:\n%s", key, buf.String())
+		}
 	}
 }
 

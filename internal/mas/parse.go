@@ -93,8 +93,9 @@ type gqlProduct struct {
 	Price       struct {
 		RegularPrice struct {
 			Amount struct {
-				Value    float64 `json:"value"`
-				Currency string  `json:"currency"`
+				// A nil value means MAS published no price for the product (S8).
+				Value    *float64 `json:"value"`
+				Currency string   `json:"currency"`
 			} `json:"amount"`
 		} `json:"regularPrice"`
 	} `json:"price"`
@@ -106,8 +107,6 @@ func (p gqlProduct) hit() contract.Hit {
 		Store:     store,
 		ID:        p.SKU,
 		Name:      p.Name,
-		Price:     p.Price.RegularPrice.Amount.Value,
-		Currency:  p.Price.RegularPrice.Amount.Currency,
 		Available: p.StockStatus == "IN_STOCK",
 	}
 	// url_key already carries the category path; the storefront only serves it with a
@@ -115,10 +114,14 @@ func (p gqlProduct) hit() contract.Hit {
 	if p.URLKey != "" {
 		h.URL = baseURL + "/" + strings.Trim(p.URLKey, "/") + "/"
 	}
-	// Euro per kg/L, rounded to cents like the unit prices DIA publishes directly.
-	if amount, unit := parseQuantity(p.Name); amount > 0 && h.Price > 0 {
-		h.PricePerUnit = round(h.Price/amount, 2)
-		h.Unit = unit
+	if price := p.Price.RegularPrice.Amount.Value; price != nil {
+		h.Price = price
+		h.Currency = p.Price.RegularPrice.Amount.Currency
+		// Euro per kg/L, rounded to cents like the unit prices DIA publishes directly.
+		if amount, unit := parseQuantity(p.Name); amount > 0 && *price > 0 {
+			h.PricePerUnit = round(*price/amount, 2)
+			h.Unit = unit
+		}
 	}
 	return h
 }

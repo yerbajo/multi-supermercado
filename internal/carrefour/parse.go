@@ -30,9 +30,10 @@ type offer struct {
 	VolumeTotal   *float64 `json:"volume_total"`
 	UnitSizeValue *float64 `json:"unit_size_value"`
 	UnitSizeUnit  *string  `json:"unit_size_unit"`
-	PriceEUR      float64  `json:"price_eur"`
-	MatchType     string   `json:"match_type"`
-	SourceURL     string   `json:"source_url"`
+	// A nil price_eur means Superfudis reported no price for the offer (S8).
+	PriceEUR  *float64 `json:"price_eur"`
+	MatchType string   `json:"match_type"`
+	SourceURL string   `json:"source_url"`
 }
 
 // hit maps one offer onto the shared envelope.
@@ -42,17 +43,20 @@ func (o offer) hit(id string) contract.Hit {
 		ID:        id,
 		Name:      o.Name,
 		Brand:     o.Brand,
-		Price:     o.PriceEUR,
-		Currency:  "EUR",
 		Available: true,
 		// source_url is the carrefour.es catalogue page Superfudis matched, so the
 		// aggregator can link the offer. It is Superfudis-reported, not fetched by us:
 		// carrefour.es answers Cloudflare 403 (S9).
 		URL: o.SourceURL,
 	}
+	if o.PriceEUR == nil {
+		return h
+	}
+	h.Price = o.PriceEUR
+	h.Currency = "EUR"
 	// S8: read the amount only from published numbers, never from the product name.
-	if amount, unit := size(o); amount > 0 && h.Price > 0 {
-		h.PricePerUnit = math.Round(h.Price/amount*100) / 100
+	if amount, unit := size(o); amount > 0 && *o.PriceEUR > 0 {
+		h.PricePerUnit = math.Round(*o.PriceEUR/amount*100) / 100
 		h.Unit = unit
 	}
 	return h

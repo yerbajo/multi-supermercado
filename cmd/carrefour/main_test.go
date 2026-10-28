@@ -6,11 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"regexp"
 	"strings"
 	"testing"
 
 	"multisuper/internal/contract"
 )
+
+func ptr(f float64) *float64 { return &f }
 
 type stubSearcher struct {
 	res  contract.Result
@@ -28,7 +31,7 @@ func sample() contract.Result {
 	return contract.Result{Store: "carrefour", Query: "leche entera", Count: 1, Hits: []contract.Hit{{
 		Store: "carrefour", ID: "8410297110979",
 		Name:  "Leche entera Central Lechera Asturiana botella 2,2 l.",
-		Brand: "central lechera asturiana", Price: 2.75, PricePerUnit: 1.25, Unit: "L",
+		Brand: "central lechera asturiana", Price: ptr(2.75), PricePerUnit: 1.25, Unit: "L",
 		Currency: "EUR", Available: true,
 	}}}
 }
@@ -62,7 +65,7 @@ func TestJSONModePrintsOnlyTheContract(t *testing.T) {
 		t.Fatalf("stdout has trailing content:\n%s", out.String())
 	}
 	if got.Store != "carrefour" || got.Query != "leche entera" || got.Count != 1 ||
-		got.Hits[0].ID != "8410297110979" || got.Hits[0].Price != 2.75 ||
+		got.Hits[0].ID != "8410297110979" || got.Hits[0].Price == nil || *got.Hits[0].Price != 2.75 ||
 		got.Hits[0].PricePerUnit != 1.25 || got.Hits[0].Unit != "L" {
 		t.Fatalf("got %+v", got)
 	}
@@ -113,7 +116,7 @@ func TestTableMode(t *testing.T) {
 
 func TestTableWithoutPerUnitPrice(t *testing.T) {
 	res := contract.Result{Store: "carrefour", Query: "arroz", Count: 1, Hits: []contract.Hit{{
-		Store: "carrefour", ID: "8411495116732", Name: "Arroz redondo 2x200 g", Price: 2.69, Currency: "EUR", Available: true,
+		Store: "carrefour", ID: "8411495116732", Name: "Arroz redondo 2x200 g", Price: ptr(2.69), Currency: "EUR", Available: true,
 	}}}
 	var out bytes.Buffer
 	if code := run([]string{"search", "arroz"}, &out, io.Discard, &stubSearcher{res: res}); code != 0 {
@@ -122,6 +125,24 @@ func TestTableWithoutPerUnitPrice(t *testing.T) {
 	row := strings.Split(strings.TrimSpace(out.String()), "\n")[1]
 	if !strings.Contains(row, "-") || !strings.Contains(row, "2.69") {
 		t.Fatalf("row = %q", row)
+	}
+}
+
+// S8: an unpublished price prints "-" in the PRICE column instead of 0,00 €.
+func TestTableMarksAnUnpublishedPrice(t *testing.T) {
+	res := contract.Result{Store: "carrefour", Query: "x", Count: 1, Hits: []contract.Hit{{
+		Store: "carrefour", ID: "1", Name: "A", Available: true,
+	}}}
+	var out bytes.Buffer
+	if code := run([]string{"search", "x"}, &out, io.Discard, &stubSearcher{res: res}); code != 0 {
+		t.Fatalf("exit = %d", code)
+	}
+	row := strings.Split(strings.TrimSpace(out.String()), "\n")[1]
+	if !regexp.MustCompile(`^1\s+A\s+-\s+-$`).MatchString(row) {
+		t.Fatalf("row = %q, want - for price and unit price", row)
+	}
+	if strings.Contains(row, "0.00") {
+		t.Fatalf("unknown price must not render as 0.00: %q", row)
 	}
 }
 

@@ -6,11 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"regexp"
 	"strings"
 	"testing"
 
 	"multisuper/internal/contract"
 )
+
+func ptr(f float64) *float64 { return &f }
 
 type stubSearcher struct {
 	res  contract.Result
@@ -27,7 +30,7 @@ func (s *stubSearcher) Search(_ context.Context, term string, limit int) (contra
 func sample() contract.Result {
 	return contract.Result{Store: "dia", Query: "leche", Count: 1, Hits: []contract.Hit{{
 		Store: "dia", ID: "74720P6", Name: "Leche entera Asturiana pack 6 x 1.5 L",
-		Brand: "Asturiana", Price: 11.82, PricePerUnit: 1.31, Unit: "L",
+		Brand: "Asturiana", Price: ptr(11.82), PricePerUnit: 1.31, Unit: "L",
 		Currency: "EUR", Available: true, Category: "Leche",
 		URL: "https://www.dia.es/p/74720P6", Image: "https://www.dia.es/i.jpg",
 	}}}
@@ -87,7 +90,7 @@ func TestTableMode(t *testing.T) {
 
 func TestTableWithoutPerUnitOrStock(t *testing.T) {
 	res := contract.Result{Store: "dia", Query: "x", Count: 1, Hits: []contract.Hit{{
-		Store: "dia", ID: "X1", Name: "Bolsa", Price: 0.05, Currency: "EUR",
+		Store: "dia", ID: "X1", Name: "Bolsa", Price: ptr(0.05), Currency: "EUR",
 	}}}
 	var out bytes.Buffer
 	if code := run([]string{"search", "x"}, &out, io.Discard, &stubSearcher{res: res}); code != 0 {
@@ -96,6 +99,24 @@ func TestTableWithoutPerUnitOrStock(t *testing.T) {
 	row := strings.Split(strings.TrimSpace(out.String()), "\n")[1]
 	if !strings.Contains(row, "-") || !strings.Contains(row, "no") {
 		t.Fatalf("row = %q", row)
+	}
+}
+
+// S8: an unpublished price prints "-" instead of reading as 0,00 €.
+func TestTableMarksAnUnpublishedPrice(t *testing.T) {
+	res := contract.Result{Store: "dia", Query: "x", Count: 1, Hits: []contract.Hit{{
+		Store: "dia", ID: "X1", Name: "Bolsa", Available: true,
+	}}}
+	var out bytes.Buffer
+	if code := run([]string{"search", "x"}, &out, io.Discard, &stubSearcher{res: res}); code != 0 {
+		t.Fatalf("exit = %d", code)
+	}
+	row := strings.Split(strings.TrimSpace(out.String()), "\n")[1]
+	if !regexp.MustCompile(`^X1\s+Bolsa\s+-\s+-\s+yes$`).MatchString(row) {
+		t.Fatalf("row = %q, want - for price and unit price", row)
+	}
+	if strings.Contains(row, "0.00") {
+		t.Fatalf("unknown price must not render as 0.00: %q", row)
 	}
 }
 

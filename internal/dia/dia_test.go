@@ -16,6 +16,20 @@ import (
 	"multisuper/internal/contract"
 )
 
+func ptr(f float64) *float64 { return &f }
+
+// sameHit compares hits by value: Price is a pointer, so == would compare addresses.
+func sameHit(a, b contract.Hit) bool {
+	if (a.Price == nil) != (b.Price == nil) {
+		return false
+	}
+	if a.Price != nil && *a.Price != *b.Price {
+		return false
+	}
+	a.Price, b.Price = nil, nil
+	return a == b
+}
+
 // baseItem is the real `search-back` item captured from dia.es, trimmed to the
 // fields the CLI reads. Envelope keys (cart, customer, facets, footer) are real
 // names but their subtrees are trimmed to empty values in the fixture.
@@ -97,7 +111,7 @@ func TestSearchOverChromeFingerprint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Search over TLS: %v", err)
 	}
-	if res.Count != 1 || res.Hits[0].ID != "74720P6" || res.Hits[0].Price != 11.82 {
+	if res.Count != 1 || res.Hits[0].ID != "74720P6" || res.Hits[0].Price == nil || *res.Hits[0].Price != 11.82 {
 		t.Fatalf("result = %+v", res)
 	}
 	if res.Hits[0].URL != srv.URL+"/huevos-leche-y-mantequilla/leche/p/74720P6" {
@@ -203,7 +217,7 @@ func TestSearchMapsRealResponse(t *testing.T) {
 		ID:           "74720P6",
 		Name:         "Leche entera Asturiana pack 6 x 1.5 L",
 		Brand:        "Asturiana",
-		Price:        11.82,
+		Price:        ptr(11.82),
 		PricePerUnit: 1.31,
 		Unit:         "L",
 		Currency:     "EUR",
@@ -212,7 +226,7 @@ func TestSearchMapsRealResponse(t *testing.T) {
 		URL:          srv.URL + "/huevos-leche-y-mantequilla/leche/p/74720P6",
 		Image:        srv.URL + "/product_images/74720P6/74720P6_ISO_0_ES.jpg",
 	}
-	if got := res.Hits[0]; got != want {
+	if got := res.Hits[0]; !sameHit(got, want) {
 		t.Fatalf("hit =\n%+v\nwant\n%+v", got, want)
 	}
 }
@@ -227,7 +241,7 @@ func TestHitMapping(t *testing.T) {
 			name: "kilo",
 			item: strings.Replace(strings.Replace(baseItem, "LITRO", "KILO", 1), "11.82", "2.45", 1),
 			want: contract.Hit{Store: "dia", ID: "74720P6", Name: "Leche entera Asturiana pack 6 x 1.5 L",
-				Brand: "Asturiana", Price: 2.45, PricePerUnit: 1.31, Unit: "kg", Currency: "EUR",
+				Brand: "Asturiana", Price: ptr(2.45), PricePerUnit: 1.31, Unit: "kg", Currency: "EUR",
 				Available: true, Category: "Leche",
 				URL:   "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/74720P6",
 				Image: "https://www.dia.es/product_images/74720P6/74720P6_ISO_0_ES.jpg"},
@@ -236,7 +250,7 @@ func TestHitMapping(t *testing.T) {
 			name: "unidad",
 			item: strings.Replace(baseItem, `"LITRO"`, `"UNIDAD"`, 1),
 			want: contract.Hit{Store: "dia", ID: "74720P6", Name: "Leche entera Asturiana pack 6 x 1.5 L",
-				Brand: "Asturiana", Price: 11.82, PricePerUnit: 1.31, Unit: "unit", Currency: "EUR",
+				Brand: "Asturiana", Price: ptr(11.82), PricePerUnit: 1.31, Unit: "unit", Currency: "EUR",
 				Available: true, Category: "Leche",
 				URL:   "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/74720P6",
 				Image: "https://www.dia.es/product_images/74720P6/74720P6_ISO_0_ES.jpg"},
@@ -245,7 +259,7 @@ func TestHitMapping(t *testing.T) {
 			name: "unknown measure unit stays empty",
 			item: strings.Replace(baseItem, `"LITRO"`, `"GRAMO"`, 1),
 			want: contract.Hit{Store: "dia", ID: "74720P6", Name: "Leche entera Asturiana pack 6 x 1.5 L",
-				Brand: "Asturiana", Price: 11.82, PricePerUnit: 1.31, Unit: "", Currency: "EUR",
+				Brand: "Asturiana", Price: ptr(11.82), PricePerUnit: 1.31, Unit: "", Currency: "EUR",
 				Available: true, Category: "Leche",
 				URL:   "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/74720P6",
 				Image: "https://www.dia.es/product_images/74720P6/74720P6_ISO_0_ES.jpg"},
@@ -254,7 +268,7 @@ func TestHitMapping(t *testing.T) {
 			name: "out of stock",
 			item: strings.Replace(baseItem, `"units_in_stock": 41`, `"units_in_stock": 0`, 1),
 			want: contract.Hit{Store: "dia", ID: "74720P6", Name: "Leche entera Asturiana pack 6 x 1.5 L",
-				Brand: "Asturiana", Price: 11.82, PricePerUnit: 1.31, Unit: "L", Currency: "EUR",
+				Brand: "Asturiana", Price: ptr(11.82), PricePerUnit: 1.31, Unit: "L", Currency: "EUR",
 				Available: false, Category: "Leche",
 				URL:   "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/74720P6",
 				Image: "https://www.dia.es/product_images/74720P6/74720P6_ISO_0_ES.jpg"},
@@ -264,9 +278,19 @@ func TestHitMapping(t *testing.T) {
 			item: `{"brand":"Dia","display_name":"Bolsa reutilizable","object_id":"X1",
 			       "l2_category_description":"Bazar","units_in_stock":5,"url":"/bazar/p/X1","image":"/img/X1.jpg"}`,
 			want: contract.Hit{Store: "dia", ID: "X1", Name: "Bolsa reutilizable", Brand: "Dia",
-				Price: 0, PricePerUnit: 0, Unit: "", Currency: "", Available: true,
+				PricePerUnit: 0, Unit: "", Currency: "", Available: true,
 				Category: "Bazar", URL: "https://www.dia.es/bazar/p/X1",
 				Image: "https://www.dia.es/img/X1.jpg"},
+		},
+		{
+			// S8: the store answered a prices object but published no price number.
+			name: "prices without a price",
+			item: strings.Replace(baseItem, `"price": 11.82,`, "", 1),
+			want: contract.Hit{Store: "dia", ID: "74720P6", Name: "Leche entera Asturiana pack 6 x 1.5 L",
+				Brand: "Asturiana", PricePerUnit: 1.31, Unit: "L",
+				Available: true, Category: "Leche",
+				URL:   "https://www.dia.es/huevos-leche-y-mantequilla/leche/p/74720P6",
+				Image: "https://www.dia.es/product_images/74720P6/74720P6_ISO_0_ES.jpg"},
 		},
 	}
 
@@ -286,7 +310,7 @@ func TestHitMapping(t *testing.T) {
 			want := tc.want
 			want.URL = strings.Replace(want.URL, DefaultBaseURL, c.BaseURL, 1)
 			want.Image = strings.Replace(want.Image, DefaultBaseURL, c.BaseURL, 1)
-			if got := res.Hits[0]; got != want {
+			if got := res.Hits[0]; !sameHit(got, want) {
 				t.Fatalf("hit =\n%+v\nwant\n%+v", got, want)
 			}
 		})

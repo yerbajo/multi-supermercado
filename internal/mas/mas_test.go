@@ -71,6 +71,16 @@ func TestSearchWithoutSizeOmitsUnitPrice(t *testing.T) {
 	}
 }
 
+// S8: MAS always answers with price.regularPrice, but when an item carries no published
+// price the hit must omit both keys instead of serialising 0,00 €.
+func TestSearchOmitsAnUnpublishedPrice(t *testing.T) {
+	body := `{"data":{"products":{"items":[{"name":"Leche entera PASCUAL","sku":"9","url_key":"lacteos/pascual","stock_status":"IN_STOCK","price":{"regularPrice":{"amount":{"currency":"EUR"}}}}]}}}`
+	want := `{"store":"mas","query":"leche","count":1,"hits":[{"store":"mas","id":"9","name":"Leche entera PASCUAL","available":true,"url":"https://www.supermercadosmas.com/lacteos/pascual/"}]}`
+	if got := compact(t, searchJSON(t, body, http.StatusOK)); got != compact(t, want) {
+		t.Fatalf("json mismatch\n got: %s\nwant: %s", got, compact(t, want))
+	}
+}
+
 func TestSearchSendsQueryToGraphQL(t *testing.T) {
 	var got struct {
 		Query     string            `json:"query"`

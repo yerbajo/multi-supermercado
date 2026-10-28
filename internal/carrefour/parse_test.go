@@ -78,8 +78,8 @@ func TestSizeUsesPublishedNumbersOnly(t *testing.T) {
 // The hit keeps the published price and leaves the unit price empty when the amount
 // is unknown, instead of estimating one (S8).
 func TestHitLeavesUnitPriceEmptyWithoutPublishedSize(t *testing.T) {
-	h := offer{Name: "Arroz redondo 2x200 g", EAN: "8411495116732", PriceEUR: 2.69, NUnits: ptr(2.0)}.hit("8411495116732")
-	if h.Price != 2.69 || h.Currency != "EUR" {
+	h := offer{Name: "Arroz redondo 2x200 g", EAN: "8411495116732", PriceEUR: ptr(2.69), NUnits: ptr(2.0)}.hit("8411495116732")
+	if h.Price == nil || *h.Price != 2.69 || h.Currency != "EUR" {
 		t.Fatalf("hit = %+v", h)
 	}
 	if h.PricePerUnit != 0 || h.Unit != "" {

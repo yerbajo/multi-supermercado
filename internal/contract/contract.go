@@ -8,19 +8,22 @@ import (
 )
 
 // Hit is one product offered by a store, normalised for cross-store comparison.
+//
+// Price is nil when the store publishes no price for the product: an absent price
+// means "not published", never 0. PricePerUnit is derived from published sizes only.
 type Hit struct {
-	Store        string  `json:"store"`
-	ID           string  `json:"id"`
-	Name         string  `json:"name"`
-	Brand        string  `json:"brand,omitempty"`
-	Price        float64 `json:"price"`
-	PricePerUnit float64 `json:"pricePerUnit,omitempty"`
-	Unit         string  `json:"unit,omitempty"` // kg | L | unit
-	Currency     string  `json:"currency"`
-	Available    bool    `json:"available"`
-	Category     string  `json:"category,omitempty"`
-	URL          string  `json:"url,omitempty"`
-	Image        string  `json:"image,omitempty"`
+	Store        string   `json:"store"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Brand        string   `json:"brand,omitempty"`
+	Price        *float64 `json:"price,omitempty"`
+	PricePerUnit float64  `json:"pricePerUnit,omitempty"`
+	Unit         string   `json:"unit,omitempty"` // kg | L | unit
+	Currency     string   `json:"currency,omitempty"`
+	Available    bool     `json:"available"`
+	Category     string   `json:"category,omitempty"`
+	URL          string   `json:"url,omitempty"`
+	Image        string   `json:"image,omitempty"`
 }
 
 // Result is the envelope printed by `search`, both as JSON and as a table.

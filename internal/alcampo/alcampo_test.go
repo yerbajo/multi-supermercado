@@ -80,6 +80,17 @@ func TestSearchMapsProductsToHits(t *testing.T) {
 	}
 }
 
+// S8: a product the store publishes without a price must omit both keys instead of
+// serialising 0,00 €.
+func TestSearchOmitsAnUnpublishedPrice(t *testing.T) {
+	body := []byte(`{"productGroups":[{"decoratedProducts":[{"productId":"a","retailerProductId":"1","name":"Plátano de Canarias","available":true}]}],"metadata":{}}`)
+	got := compact(t, searchJSON(t, body, http.StatusOK, 20, nil))
+	want := `{"store":"alcampo","query":"leche","count":1,"hits":[{"store":"alcampo","id":"1","name":"Plátano de Canarias","available":true,"url":"https://www.compraonline.alcampo.es/products/1/details"}]}`
+	if got != compact(t, want) {
+		t.Fatalf("json mismatch\n got: %s\nwant: %s", got, compact(t, want))
+	}
+}
+
 // The store publishes a per-package price ("EACH"); it is mapped, never derived.
 func TestSearchKeepsPublishedEachUnitPrice(t *testing.T) {
 	got := compact(t, searchJSON(t, fixture(t, "search_detergente.json"), http.StatusOK, 20, nil))

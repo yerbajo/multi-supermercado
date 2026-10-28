@@ -65,7 +65,6 @@ func (i item) hit() (contract.Hit, bool) {
 		ID:        i.Code,
 		Name:      p.FullTitle,
 		Brand:     p.Brand.Name,
-		Currency:  p.Price.CurrencyCode,
 		Available: p.available(),
 		Category:  p.Category,
 		URL:       baseURL + p.CanonicalURL,
@@ -77,13 +76,16 @@ func (i item) hit() (contract.Hit, bool) {
 	if h.ID == "" && p.ProductID != 0 {
 		h.ID = strconv.FormatInt(p.ProductID, 10)
 	}
-	if p.Price.Price != nil {
-		h.Price = *p.Price.Price
-	}
-	// Euro per kg/L only when Lidl publishes the sold amount and a price (S8).
-	if amount, unit := quantity(p.Price.Packaging.Text, p.FullTitle, p.Category); amount > 0 && h.Price > 0 {
-		h.PricePerUnit = math.Round(h.Price/amount*100) / 100
-		h.Unit = unit
+	// A nil price means Lidl published none (no price at all, or only a Lidl Plus
+	// member price): the hit keeps it empty instead of 0 (S8).
+	if price := p.Price.Price; price != nil {
+		h.Price = price
+		h.Currency = p.Price.CurrencyCode
+		// Euro per kg/L only when Lidl publishes the sold amount and a price (S8).
+		if amount, unit := quantity(p.Price.Packaging.Text, p.FullTitle, p.Category); amount > 0 && *price > 0 {
+			h.PricePerUnit = math.Round(*price/amount*100) / 100
+			h.Unit = unit
+		}
 	}
 	return h, true
 }

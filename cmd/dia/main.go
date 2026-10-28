@@ -85,10 +85,18 @@ func writeTable(w io.Writer, res contract.Result) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "ID\tNAME\tPRICE\t€/UNIT\tIN STOCK")
 	for _, h := range res.Hits {
-		fmt.Fprintf(tw, "%s\t%s\t%.2f\t%s\t%s\n",
-			h.ID, h.Name, h.Price, perUnit(h), stock(h.Available))
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+			h.ID, h.Name, price(h), perUnit(h), stock(h.Available))
 	}
 	return tw.Flush()
+}
+
+// price prints "-" when the store publishes none: 0.00 would read as free.
+func price(h contract.Hit) string {
+	if h.Price == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%.2f", *h.Price)
 }
 
 func perUnit(h contract.Hit) string {

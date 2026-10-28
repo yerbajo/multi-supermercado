@@ -121,7 +121,8 @@ type hit struct {
 		URL  string `json:"url"`
 	} `json:"assets"`
 	CurrentPrice *struct {
-		PriceValue float64 `json:"priceValue"`
+		// A nil priceValue means the catalogue publishes no price (fresh produce).
+		PriceValue *float64 `json:"priceValue"`
 		BasePrice  []struct {
 			Value float64 `json:"basePriceValue"`
 			Scale string  `json:"basePriceScale"`
@@ -175,7 +176,6 @@ func (h hit) contractHit() contract.Hit {
 		ID:        h.ObjectID,
 		Name:      h.Name,
 		Brand:     h.Brand,
-		Currency:  "EUR",
 		Available: h.Available,
 	}
 	if len(h.Categories.Lvl1) > 0 {
@@ -194,14 +194,17 @@ func (h hit) contractHit() contract.Hit {
 	}
 	if p := h.CurrentPrice; p != nil {
 		out.Price = p.PriceValue
+		if out.Price != nil {
+			out.Currency = "EUR"
+		}
 		// A published unit price wins; the declared sales unit ("1 l unidad") is the
 		// fallback, because most of the assortment lists no base price.
 		if len(p.BasePrice) > 0 {
 			out.PricePerUnit, out.Unit = publishedUnitPrice(p.BasePrice[0].Value, p.BasePrice[0].Scale)
 		}
-		if out.PricePerUnit == 0 && out.Price > 0 {
+		if out.PricePerUnit == 0 && out.Price != nil && *out.Price > 0 {
 			if size, unit := parseQuantity(h.SalesUnit); size > 0 {
-				out.PricePerUnit = round(out.Price/size, 2)
+				out.PricePerUnit = round(*out.Price/size, 2)
 				out.Unit = unit
 			}
 		}

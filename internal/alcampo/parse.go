@@ -38,9 +38,13 @@ func (p product) hit() contract.Hit {
 		ID:        p.RetailerProductID,
 		Name:      p.Name,
 		Brand:     p.Brand,
-		Price:     parseAmount(p.Price.Amount),
-		Currency:  p.Price.Currency,
 		Available: p.Available,
+	}
+	// A published amount is the only price source; a missing or unparsable one leaves
+	// the price absent instead of 0,00 € (S8).
+	if price := parseAmount(p.Price.Amount); price != nil {
+		h.Price = price
+		h.Currency = p.Price.Currency
 	}
 	if p.RetailerProductID != "" {
 		h.URL = baseURL + "/products/" + p.RetailerProductID + "/details"
@@ -52,7 +56,9 @@ func (p product) hit() contract.Hit {
 	// fields empty rather than inventing a comparison (S8).
 	if unit := contractUnit(p.UnitPrice.UnitName); unit != "" {
 		h.Unit = unit
-		h.PricePerUnit = parseAmount(p.UnitPrice.Price.Amount)
+		if unitPrice := parseAmount(p.UnitPrice.Price.Amount); unitPrice != nil {
+			h.PricePerUnit = *unitPrice
+		}
 	}
 	return h
 }
@@ -71,11 +77,11 @@ func contractUnit(unitName string) string {
 	return ""
 }
 
-// parseAmount turns "5.28" into 5.28; an absent amount stays zero.
-func parseAmount(s string) float64 {
+// parseAmount turns "5.28" into 5.28; a missing or malformed amount is not a price.
+func parseAmount(s string) *float64 {
 	n, err := strconv.ParseFloat(strings.Replace(s, ",", ".", 1), 64)
 	if err != nil {
-		return 0
+		return nil
 	}
-	return n
+	return &n
 }

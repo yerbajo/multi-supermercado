@@ -6,11 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"regexp"
 	"strings"
 	"testing"
 
 	"multisuper/internal/contract"
 )
+
+func ptr(f float64) *float64 { return &f }
 
 type stubSearcher struct {
 	res  contract.Result
@@ -27,7 +30,7 @@ func (s *stubSearcher) Search(_ context.Context, term string, limit int) (contra
 func sample() contract.Result {
 	return contract.Result{Store: "lidl", Query: "leche", Count: 1, Hits: []contract.Hit{{
 		Store: "lidl", ID: "11001765", Name: "FIN CARRÉ Chocolate",
-		Brand: "FIN CARRÉ", Price: 0.85, PricePerUnit: 8.5, Unit: "kg",
+		Brand: "FIN CARRÉ", Price: ptr(0.85), PricePerUnit: 8.5, Unit: "kg",
 		Currency: "EUR", Available: true, Category: "Food",
 		URL: "https://www.lidl.es/p/fin-carre-chocolate/p11001765", Image: "https://www.lidl.es/i.png",
 	}}}
@@ -62,7 +65,7 @@ func TestJSONModePrintsOnlyTheContract(t *testing.T) {
 		t.Fatalf("stdout has trailing content:\n%s", out.String())
 	}
 	if got.Store != "lidl" || got.Query != "leche" || got.Count != 1 || got.Hits[0].ID != "11001765" ||
-		got.Hits[0].Price != 0.85 || got.Hits[0].PricePerUnit != 8.5 || got.Hits[0].Unit != "kg" {
+		got.Hits[0].Price == nil || *got.Hits[0].Price != 0.85 || got.Hits[0].PricePerUnit != 8.5 || got.Hits[0].Unit != "kg" {
 		t.Fatalf("got %+v", got)
 	}
 	if errOut.Len() != 0 {
@@ -70,11 +73,11 @@ func TestJSONModePrintsOnlyTheContract(t *testing.T) {
 	}
 }
 
-// S8: when Lidl publishes no price the hit keeps price 0 and the CLI says so — on
+// S8: when Lidl publishes no price the hit carries no price and the CLI says so — on
 // stderr, never inside the JSON document.
 func TestUnpricedHitsAreDeclaredOnStderrOnly(t *testing.T) {
 	res := sample()
-	res.Hits = append(res.Hits, contract.Hit{Store: "lidl", ID: "11137495", Name: "REALVALLE Lacón al horno", Currency: "EUR", Available: true})
+	res.Hits = append(res.Hits, contract.Hit{Store: "lidl", ID: "11137495", Name: "REALVALLE Lacón al horno", Available: true})
 	res.Count = 2
 	var out, errOut bytes.Buffer
 
@@ -85,8 +88,22 @@ func TestUnpricedHitsAreDeclaredOnStderrOnly(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("stdout is not JSON: %v\n%s", err, out.String())
 	}
-	if got.Hits[1].Price != 0 {
-		t.Fatalf("unpriced hit = %+v, want price 0", got.Hits[1])
+	if got.Hits[1].Price != nil {
+		t.Fatalf("unpriced hit = %+v, want no price", got.Hits[1])
+	}
+	var doc struct {
+		Hits []map[string]json.RawMessage `json:"hits"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+		t.Fatalf("stdout is not JSON: %v", err)
+	}
+	for _, key := range []string{"price", "currency"} {
+		if _, ok := doc.Hits[1][key]; ok {
+			t.Errorf("an unknown price must omit %q from the JSON:\n%s", key, out.String())
+		}
+	}
+	if _, ok := doc.Hits[0]["price"]; !ok {
+		t.Error("a published price must stay in the JSON")
 	}
 	if !strings.Contains(errOut.String(), "1 of 2 hits have no published price") {
 		t.Fatalf("stderr = %q, want the missing-price notice", errOut.String())
@@ -119,7 +136,7 @@ func TestTableMode(t *testing.T) {
 
 func TestTableWithoutPerUnitPrice(t *testing.T) {
 	res := contract.Result{Store: "lidl", Query: "x", Count: 1, Hits: []contract.Hit{{
-		Store: "lidl", ID: "7", Name: "GELATELLI Helado almendrado", Price: 2.65, Currency: "EUR",
+		Store: "lidl", ID: "7", Name: "GELATELLI Helado almendrado", Price: ptr(2.65), Currency: "EUR",
 	}}}
 	var out bytes.Buffer
 	if code := run([]string{"search", "x"}, &out, io.Discard, &stubSearcher{res: res}); code != 0 {
@@ -128,6 +145,24 @@ func TestTableWithoutPerUnitPrice(t *testing.T) {
 	row := strings.Split(strings.TrimSpace(out.String()), "\n")[1]
 	if !strings.Contains(row, "-") || !strings.Contains(row, "2.65") {
 		t.Fatalf("row = %q", row)
+	}
+}
+
+// S8: an unpublished price prints "-" in the PRICE column instead of 0,00 €.
+func TestTableMarksAnUnpublishedPrice(t *testing.T) {
+	res := contract.Result{Store: "lidl", Query: "x", Count: 1, Hits: []contract.Hit{{
+		Store: "lidl", ID: "11137495", Name: "Lacón", Available: true,
+	}}}
+	var out bytes.Buffer
+	if code := run([]string{"search", "x"}, &out, io.Discard, &stubSearcher{res: res}); code != 0 {
+		t.Fatalf("exit = %d", code)
+	}
+	row := strings.Split(strings.TrimSpace(out.String()), "\n")[1]
+	if !regexp.MustCompile(`^11137495\s+Lacón\s+-\s+-$`).MatchString(row) {
+		t.Fatalf("row = %q, want - for price and unit price", row)
+	}
+	if strings.Contains(row, "0.00") {
+		t.Fatalf("unknown price must not render as 0.00: %q", row)
 	}
 }
 

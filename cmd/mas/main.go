@@ -124,11 +124,15 @@ func printTable(w io.Writer, res contract.Result) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "ID\tNAME\tPRICE\tUNIT PRICE")
 	for _, h := range res.Hits {
+		price := "-"
+		if h.Price != nil {
+			price = fmt.Sprintf("%.2f %s", *h.Price, h.Currency)
+		}
 		unitPrice := "-"
 		if h.Unit != "" {
 			unitPrice = fmt.Sprintf("%.2f %s/%s", h.PricePerUnit, h.Currency, h.Unit)
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%.2f %s\t%s\n", h.ID, h.Name, h.Price, h.Currency, unitPrice)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", h.ID, h.Name, price, unitPrice)
 	}
 	return tw.Flush()
 }

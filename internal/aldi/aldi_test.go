@@ -15,6 +15,20 @@ import (
 	"multisuper/internal/contract"
 )
 
+func ptr(f float64) *float64 { return &f }
+
+// sameHit compares hits by value: Price is a pointer, so == would compare addresses.
+func sameHit(a, b contract.Hit) bool {
+	if (a.Price == nil) != (b.Price == nil) {
+		return false
+	}
+	if a.Price != nil && *a.Price != *b.Price {
+		return false
+	}
+	a.Price, b.Price = nil, nil
+	return a == b
+}
+
 // fixture serves a captured Algolia response and records what the client sent.
 type fixture struct {
 	*httptest.Server
@@ -63,7 +77,7 @@ func TestSearchMapsCapturedHits(t *testing.T) {
 		ID:           "907505",
 		Name:         "Tortitas de arroz integral con chocolate con leche",
 		Brand:        "BICENTURY®",
-		Price:        1.37,
+		Price:        ptr(1.37),
 		PricePerUnit: 10.54,
 		Unit:         "kg",
 		Currency:     "EUR",
@@ -72,13 +86,13 @@ func TestSearchMapsCapturedHits(t *testing.T) {
 		URL:          "https://www.aldi.es/producto/tortitas-de-arroz-integral-con-chocolate-con-leche-907505.html",
 		Image:        "https://s7g10.scene7.com/is/image/aldinord/9075_05_foto_chocolate_leche",
 	}
-	if got := res.Hits[0]; got != want {
+	if got := res.Hits[0]; !sameHit(got, want) {
 		t.Errorf("hit[0]\n got %+v\nwant %+v", got, want)
 	}
 
 	// Fresh milk publishes no base price; its declared sales unit ("1 l unidad")
 	// is the only published size, so €/L is 0.96 without estimating anything.
-	if h := res.Hits[1]; h.ID != "872200" || h.Price != 1.03 || h.PricePerUnit != 1.03 || h.Unit != "L" {
+	if h := res.Hits[1]; h.ID != "872200" || h.Price == nil || *h.Price != 1.03 || h.PricePerUnit != 1.03 || h.Unit != "L" {
 		t.Errorf("hit[1] = %+v", h)
 	}
 }
@@ -95,12 +109,12 @@ func TestSearchKeepsHitsWithoutPublishedPrice(t *testing.T) {
 		t.Fatalf("count = %d, want 2", res.Count)
 	}
 	first := res.Hits[0]
-	if first.ID != "998600" || first.Price != 0 || first.PricePerUnit != 0 || first.Unit != "" {
+	if first.ID != "998600" || first.Price != nil || first.PricePerUnit != 0 || first.Unit != "" {
 		t.Errorf("hit[0] = %+v, want no price and no unit", first)
 	}
 	// A declared size without a price is still not a unit price: 0/0.45kg would be
 	// a made-up number.
-	if h := res.Hits[1]; h.Price != 0 || h.PricePerUnit != 0 || h.Unit != "" {
+	if h := res.Hits[1]; h.Price != nil || h.PricePerUnit != 0 || h.Unit != "" {
 		t.Errorf("hit[1] = %+v, want no unit price", h)
 	}
 	if first.Brand != "" {

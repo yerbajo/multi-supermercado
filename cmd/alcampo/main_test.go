@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -67,7 +68,7 @@ func TestSearchJSONEnvelope(t *testing.T) {
 	if got.Store != "alcampo" || got.Query != "leche" || got.Count != 2 || len(got.Hits) != 2 {
 		t.Fatalf("envelope = %+v", got)
 	}
-	if got.Hits[0].ID != "54180" || got.Hits[0].Price != 5.28 || got.Hits[0].Unit != "L" || got.Hits[0].PricePerUnit != 0.88 {
+	if got.Hits[0].ID != "54180" || got.Hits[0].Price == nil || *got.Hits[0].Price != 5.28 || got.Hits[0].Unit != "L" || got.Hits[0].PricePerUnit != 0.88 {
 		t.Fatalf("first hit = %+v", got.Hits[0])
 	}
 	if got.Hits[1].Available {
@@ -89,6 +90,24 @@ func TestSearchTableIsDefault(t *testing.T) {
 	}
 	if !strings.HasPrefix(lines[0], "ID") || !strings.Contains(lines[1], "54180") || !strings.Contains(lines[1], "0.88 EUR/L") {
 		t.Fatalf("unexpected table:\n%s", out.String())
+	}
+}
+
+// S8: an unpublished price prints "-" in the PRICE column instead of 0,00 €.
+func TestTableMarksAnUnpublishedPrice(t *testing.T) {
+	res := contract.Result{Store: "alcampo", Query: "x", Count: 1, Hits: []contract.Hit{{
+		Store: "alcampo", ID: "1", Name: "Plátano", Available: true,
+	}}}
+	var out strings.Builder
+	if err := printTable(&out, res); err != nil {
+		t.Fatalf("printTable: %v", err)
+	}
+	row := strings.Split(strings.TrimSpace(out.String()), "\n")[1]
+	if !regexp.MustCompile(`^1\s+Plátano\s+-\s+-$`).MatchString(row) {
+		t.Fatalf("row = %q, want - for price and unit price", row)
+	}
+	if strings.Contains(row, "0.00") {
+		t.Fatalf("unknown price must not render as 0.00: %q", row)
 	}
 }
 

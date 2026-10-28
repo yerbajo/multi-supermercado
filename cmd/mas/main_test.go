@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 
 	"multisuper/internal/contract"
 )
+
+func ptr(f float64) *float64 { return &f }
 
 // stubSearcher keeps the exit-code tests offline and records what run passed on.
 type stubSearcher struct {
@@ -97,6 +100,24 @@ func TestMultiWordTermAndFlags(t *testing.T) {
 	}
 	if stub.term != "leche entera" || stub.limit != 2 || stub.page != 1 {
 		t.Fatalf("search got term=%q page=%d limit=%d", stub.term, stub.page, stub.limit)
+	}
+}
+
+// S8: a hit without a published price prints "-" in the PRICE column, never 0.00.
+func TestTableMarksAnUnpublishedPrice(t *testing.T) {
+	res := contract.Result{Store: "mas", Query: "leche", Count: 2, Hits: []contract.Hit{
+		{Store: "mas", ID: "062595", Name: "Leche entera", Price: ptr(1.84), Currency: "EUR", Available: true},
+		{Store: "mas", ID: "077777", Name: "Cogollos", Available: true},
+	}}
+	var out strings.Builder
+	if err := printTable(&out, res); err != nil {
+		t.Fatalf("printTable: %v", err)
+	}
+	if !regexp.MustCompile(`(?m)^077777\s+Cogollos\s+-\s+-$`).MatchString(out.String()) {
+		t.Fatalf("unpriced row must print - for price and unit price:\n%s", out.String())
+	}
+	if !regexp.MustCompile(`(?m)^062595\s+Leche entera\s+1\.84 EUR\s+-$`).MatchString(out.String()) {
+		t.Fatalf("priced row must keep the published price:\n%s", out.String())
 	}
 }
 
