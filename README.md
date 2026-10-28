@@ -40,6 +40,34 @@ El término es **la frase completa**: `dia search leche entera` busca «leche en
 > `go run` no propaga el código de salida (imprime `exit status 2` y sale con 1). Para
 > verificar códigos, construye el binario.
 
+## Una llamada para las seis cadenas
+
+La web no debe orquestar seis procesos ni leer prosa para saber qué falló:
+
+```bash
+multisuper find leche --limit 3 --json
+multisuper find leche --only mas,dia --timeout 5s
+```
+
+Lanza las seis en paralelo con timeout por cadena y devuelve **siempre resultado parcial**:
+una cadena caída no cancela las demás ni deja la respuesta vacía.
+
+```json
+{"query":"leche","count":15,"results":[
+  {"store":"dia","count":3,"elapsedMs":420,"hits":[ ... ]},
+  {"store":"carrefour","count":0,"elapsedMs":188,"hits":[],
+   "error":{"code":"quota","retryable":true,"message":"..."}}
+]}
+```
+
+Códigos de error estables, no texto: `blocked` (403/denegación de borde), `quota` (429 o
+`202` de AWS WAF), `timeout`, `network`, `parse`, `unknown`. Solo `quota` y `timeout` son
+`retryable`. Salida: `0` si al menos una cadena respondió, `1` si fallaron todas, `2` uso.
+
+Sin caché y sin fusión de productos: un proceso de vida corta no puede cachear por la web, y
+la fusión necesita un identificador común que hoy solo tiene Carrefour. Ambas cosas pertenecen
+al servidor que envuelva estos binarios.
+
 ## Contrato JSON
 
 Con `--json`, stdout lleva **exactamente un documento** y nada más; los errores y los avisos
@@ -82,6 +110,14 @@ La regla es una sola: **lo que la tienda no publica, no aparece**.
 Campos que cada cadena sí rellena: `mas` no publica tamaño de venta, así que **no da
 `pricePerUnit`**; `carrefour` no publica stock, así que no da `available`; `mas` no devuelve
 `brand`, `category` ni `image`.
+
+**Identidad entre cadenas.** `ean` y `size` existen para que la web sepa que dos hits son el
+mismo producto. La respuesta medida es dura: **solo Carrefour publica código de barras**
+(Superfudis lo entrega, `8410297110979`). `mas` no puede exponerlo —su esquema GraphQL ni
+siquiera tiene `custom_attributes`, donde Magento guarda los atributos propios—, y `dia`,
+`aldi`, `lidl` y `alcampo` publican números de artículo internos, no EAN. Por tanto el
+emparejamiento entre cadenas tendrá que ser por nombre + `size`, y `size` es texto publicado
+sin normalizar (`"2200 ml"`, no `"2,2 l"`): normalizarlo es trabajo del agregador.
 
 ## Las seis cadenas
 
@@ -135,6 +171,8 @@ falsas de este README).
 | `carrefour` | Depende de una API de terceros gratuita, con su cuota y su latencia (arranque en frío ~9 s). |
 | `aldi`, `lidl` | Credenciales/parámetros que pueden rotar; fallan con error explícito si eso pasa. |
 | `mas` | Sin €/unidad (no publica tamaño) y sin `brand`/`category`/`image` en la respuesta actual. |
+| `aldi`, `lidl` | Publican el tamaño de venta como texto (`salesUnit`, `packaging.text`) y hoy no se expone en `size`: es la mejora más barata para ellas. |
+| `carrefour` | Superfudis devolvió `500 basket_comparison_failed` en una llamada y 200 al reintentar: la disponibilidad del `ean` depende de un tercero intermitente. |
 | todas | Sin carrito ni checkout: fase 2. |
 
 ## Origen
