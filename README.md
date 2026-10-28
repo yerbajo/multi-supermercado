@@ -172,8 +172,9 @@ falsas de este README).
 | `aldi`, `lidl` | Credenciales/parámetros que pueden rotar; fallan con error explícito si eso pasa. |
 | `mas` | Sin €/unidad (no publica tamaño) y sin `brand`/`category`/`image` en la respuesta actual. |
 | `aldi`, `lidl` | Publican el tamaño de venta como texto (`salesUnit`, `packaging.text`) y hoy no se expone en `size`: es la mejora más barata para ellas. |
-| `carrefour` | Superfudis devolvió `500 basket_comparison_failed` en una llamada y 200 al reintentar: la disponibilidad del `ean` depende de un tercero intermitente. |
-| todas | Sin carrito ni checkout: fase 2. |
+| `carrefour` | Superfudis devolvió `500 basket_comparison_failed` en una llamada y 200 al reintentar; y agotó su cuota de 3/min en la primera prueba real del agregador. El `ean` depende de un tercero intermitente. |
+| `mas` (cesta) | El carrito GraphQL lee, vacía y olvida el id, pero `addProductsToCart` es rechazado para todo SKU (`UNDEFINED: La cantidad solicitada no está disponible`): su canal de venta no expone inventario por GraphQL y la propia tienda añade con un **POST de formulario** a `/checkout/cart/add`. Esa vía exige `form_key` y cookies de sesión: pendiente. |
+| cestas | Solo posibles donde hay venta online: `mas`, `dia`, `lidl`, `alcampo`. **ALDI no vende online** y **Carrefour está bloqueado** (y Superfudis no gestiona cestas): esas dos nunca tendrán cesta, solo precio. |
 
 ## Origen
 
