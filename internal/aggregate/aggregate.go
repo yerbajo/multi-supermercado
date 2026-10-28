@@ -21,7 +21,26 @@ import (
 	"time"
 
 	"multisuper/internal/contract"
+	"multisuper/internal/match"
 )
+
+// maxOverfetch caps how many hits beyond the caller's limit one chain is asked for.
+// It keeps a six-chain fan-out inside the chains' own page sizes and rate limits.
+const maxOverfetch = 30
+
+// overfetch is how many hits to ask a chain for: three times the caller's limit so the
+// ranker has something to choose from, capped at maxOverfetch and never fewer than the
+// caller asked for, so a large --limit still fills.
+func overfetch(limit int) int {
+	ask := limit * 3
+	if ask > maxOverfetch {
+		ask = maxOverfetch
+	}
+	if ask < limit {
+		ask = limit
+	}
+	return ask
+}
 
 // Stable failure codes the web app switches on. It never parses the message prose.
 const (
@@ -198,9 +217,15 @@ type Chain struct {
 // chain in the order given. A chain that fails or overruns timeout is reported in its
 // own entry and never cancels the others: a partial answer beats no answer.
 //
+// Each chain is asked for more hits than the caller wants (overfetch), and its answer is
+// ordered by how much of the query each product name covers — every word, then some, then
+// none — before being cut to limit. A chain whose whole answer covers nothing keeps its
+// own order: junk beats an empty answer when the chain has nothing relevant.
+//
 // The deadline is enforced through ctx, which every chain client hands to net/http.
 func Find(ctx context.Context, query string, limit int, timeout time.Duration, chains []Chain) Result {
 	res := Result{Query: query, Results: make([]StoreResult, len(chains))}
+	ask := overfetch(limit)
 
 	var wg sync.WaitGroup
 	for i, c := range chains {
@@ -212,7 +237,7 @@ func Find(ctx context.Context, query string, limit int, timeout time.Duration, c
 			defer cancel()
 
 			start := time.Now()
-			got, err := c.Searcher.Search(cctx, query, limit)
+			got, err := c.Searcher.Search(cctx, query, ask)
 			out := StoreResult{
 				Store:     c.Store,
 				ElapsedMs: time.Since(start).Milliseconds(),
@@ -221,8 +246,8 @@ func Find(ctx context.Context, query string, limit int, timeout time.Duration, c
 			if err != nil {
 				out.Error = Classify(err)
 			} else if got.Hits != nil {
-				out.Hits = got.Hits
-				out.Count = len(got.Hits)
+				out.Hits = cut(match.Rank(query, got.Hits), limit)
+				out.Count = len(out.Hits)
 			}
 			res.Results[i] = out
 		}()
@@ -233,6 +258,14 @@ func Find(ctx context.Context, query string, limit int, timeout time.Duration, c
 		res.Count += r.Count
 	}
 	return res
+}
+
+// cut keeps the first limit hits, the caller's page size.
+func cut(hits []contract.Hit, limit int) []contract.Hit {
+	if len(hits) > limit {
+		return hits[:limit]
+	}
+	return hits
 }
 
 // ExitCode is 1 only when every chain failed, so a caller can tell "the search ran and

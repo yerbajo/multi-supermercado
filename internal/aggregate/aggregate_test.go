@@ -22,10 +22,12 @@ type stub struct {
 	err   error
 	block bool // wait for the context deadline instead of answering
 	calls atomic.Int32
+	asked atomic.Int32 // the limit the chain was last asked for
 }
 
 func (s *stub) Search(ctx context.Context, term string, limit int) (contract.Result, error) {
 	s.calls.Add(1)
+	s.asked.Store(int32(limit))
 	if s.block {
 		<-ctx.Done()
 		return contract.Result{}, ctx.Err()
@@ -202,6 +204,102 @@ func TestFindEncodesEmptyHitsAsAnArray(t *testing.T) {
 	}
 	if strings.Contains(buf.String(), "null") {
 		t.Errorf("encoded result carries a null:\n%s", buf.String())
+	}
+}
+
+// named is one chain's answer with the exact names the live binary returned, so the
+// ranking is pinned against real junk and not invented text.
+func named(name string, hits ...string) *stub {
+	s := &stub{}
+	for i, h := range hits {
+		s.hits = append(s.hits, contract.Hit{Store: name, ID: fmt.Sprintf("%s-%d", name, i), Name: h})
+	}
+	return s
+}
+
+// junkOrder mixes the junk LIDL actually returned for «leche entera» with real hits: one
+// name of two words, one of one word, two of none.
+var junkOrder = []string{
+	"FIN CARRÉ Chocolate",
+	"JOHNSON & JOHNSON Enjuague bucal",
+	"Leche entera sin lactosa",
+	"Chocolate leche LINDT 100gr",
+}
+
+// Every chain is asked for more than the caller's limit — three times, capped at 30 and
+// never below the limit — so the ranker has something to choose from.
+func TestFindAsksEachChainForMoreThanTheLimit(t *testing.T) {
+	tests := []struct{ limit, want int }{
+		{1, 3},
+		{4, 12},
+		{10, 30},
+		{20, 30}, // 60 capped at 30
+		{100, 100},
+	}
+	for _, tt := range tests {
+		s := &stub{hits: hits(1)}
+		Find(context.Background(), "leche", tt.limit, time.Second, []Chain{{Store: "lidl", Searcher: s}})
+		if got := int(s.asked.Load()); got != tt.want {
+			t.Errorf("limit %d: chain was asked for %d hits, want %d", tt.limit, got, tt.want)
+		}
+	}
+}
+
+// Both words first, then one, then none: the LIDL answer for «leche entera» stops leading
+// with chocolate and mouthwash.
+func TestFindRanksHitsByTermCoverage(t *testing.T) {
+	s := named("lidl", junkOrder...)
+	res := Find(context.Background(), "leche entera", 10, time.Second, []Chain{{Store: "lidl", Searcher: s}})
+
+	got := make([]string, len(res.Results[0].Hits))
+	for i, h := range res.Results[0].Hits {
+		got[i] = h.Name
+	}
+	want := []string{
+		"Leche entera sin lactosa",         // 2 of 2
+		"Chocolate leche LINDT 100gr",      // 1 of 2
+		"FIN CARRÉ Chocolate",              // 0 of 2, still before the next zero
+		"JOHNSON & JOHNSON Enjuague bucal", // 0 of 2
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("ranked hits = %v, want %v", got, want)
+		}
+	}
+}
+
+// The answer carries exactly the caller's limit, even though the chain was asked for
+// three times as many.
+func TestFindTruncatesToTheLimitAfterRanking(t *testing.T) {
+	s := named("lidl", append(junkOrder, "Leche fresca entera", "MILBONA Nata")...)
+	res := Find(context.Background(), "leche entera", 2, time.Second, []Chain{{Store: "lidl", Searcher: s}})
+
+	r := res.Results[0]
+	if len(r.Hits) != 2 || r.Count != 2 {
+		t.Fatalf("got %d hits and count %d, want exactly 2 and 2", len(r.Hits), r.Count)
+	}
+	if res.Count != 2 {
+		t.Errorf("total count = %d, want 2", res.Count)
+	}
+	if r.Hits[0].Name != "Leche entera sin lactosa" || r.Hits[1].Name != "Leche fresca entera" {
+		t.Fatalf("hits = %s, %s: want the two full-coverage hits", r.Hits[0].Name, r.Hits[1].Name)
+	}
+}
+
+// An answer where nothing covers the query keeps the chain's order instead of coming back
+// empty or shuffled: a chain that has nothing relevant still answers.
+func TestFindKeepsTheChainOrderWhenNothingCovers(t *testing.T) {
+	s := named("lidl", "FIN CARRÉ Chocolate", "JOHNSON & JOHNSON Enjuague bucal", "MILBONA Nata")
+	res := Find(context.Background(), "pan de molde", 3, time.Second, []Chain{{Store: "lidl", Searcher: s}})
+
+	r := res.Results[0]
+	if len(r.Hits) != 3 {
+		t.Fatalf("got %d hits, want all 3 kept", len(r.Hits))
+	}
+	for i, want := range []string{"FIN CARRÉ Chocolate", "JOHNSON & JOHNSON Enjuague bucal", "MILBONA Nata"} {
+		if r.Hits[i].Name != want {
+			t.Fatalf("hit %d = %q, want %q in the chain's order", i, r.Hits[i].Name, want)
+		}
 	}
 }
 
