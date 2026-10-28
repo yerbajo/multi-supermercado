@@ -22,6 +22,12 @@ Fase 1 de un agregador: dos binarios, uno por cadena, que buscan un producto y d
 - **S6** — «puedes analizar grocery-cli para reutilizar codigo.» Se reutiliza su contrato
   de datos (`internal/store/store.go`, MIT) como referencia de forma; el código se copia
   o se reescribe, nunca se importa (`internal/` no es importable entre módulos).
+- **S7** — «en subagentes de aldi, lidl, carrefour y alcampo». Cuatro cadenas más con el
+  mismo patrón que S1 y S3: un binario propio (`aldi`, `lidl`, `alcampo`, `carrefour`),
+  un paquete propio y el mismo sobre `contract.Result`. Si una cadena no publica precios
+  o no se deja leer sin navegador, se dice y no se simula.
+- **S8** — Ningún CLI inventa un dato: sin precio publicado → `price` vacío y el hueco
+  declarado en el README, nunca un precio estimado ni el de otra cadena.
 
 ## Hechos verificados que condicionan la implementación
 
@@ -44,6 +50,17 @@ y `total_count` verificados (245 resultados para «leche», 20 por página).
       y `measure_unit`. Ruta: `gentle-ai-worker` (B). Commit `feat(dia): …`
 - [ ] **T4** Verificación independiente de ambos (`gentle-ai-verify`) + smoke real.
 - [ ] **T5** `README.md` con el contrato JSON y los límites conocidos.
+- [ ] **T6** `alcampo-cli`: `compraonline.alcampo.es/graphql` (existe: 405 a GET, exige POST).
+      Ruta: `gentle-ai-worker`.
+- [ ] **T7** `aldi-cli`: Next.js en `aldi.es` (buildId + rutas `/productos/...`), datos por
+      `/_next/data/<buildId>/…json`. Ruta: `gentle-ai-worker`.
+- [ ] **T8** `lidl-cli`: `lidl.es/q/api/search` responde 401; hay que descubrir sesión o
+      cabeceras. Ruta: `gentle-ai-worker`.
+- [ ] **T9** `carrefour-cli`: `carrefour.es` devuelve 403 Cloudflare. Requiere ingeniería
+      inversa con navegador real o huella TLS. Ruta: `gentle-ai-explore` para el mapa y
+      decisión del usuario antes de escribir código.
+- [ ] **T10** Desbloquear el smoke real de DIA (Akamai responde 200 de forma intermitente
+      según huella TLS/orden de cabeceras). Espera decisión sobre añadir dependencia uTLS.
 
 ## Log
 
@@ -56,6 +73,7 @@ y `total_count` verificados (245 resultados para «leche», 20 por página).
   evolucionará la idea mas adelante). Si necesitas hacer REA, hazlo. 5. No exactamente,
   pero puedes analizar grocery-cli para reutilizar codigo.»
 - **L3** (literal) «continua, lanza subagentes para trabajo en paralelo»
+- **L4** (literal) «en subagentes de aldi, lidl, carrefour y alcampo»
 - **Decisión:** Go (stdlib, sin dependencias), mismo contrato de salida para las dos
   cadenas, `--json` como forma canónica y tabla legible como forma por defecto.
 - **Decisión:** fuera de T2/T3 todo lo que no sea `search` (product, categories, batch).
