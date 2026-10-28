@@ -40,6 +40,13 @@ Fase 1 de un agregador: dos binarios, uno por cadena, que buscan un producto y d
   petición, 3 peticiones por minuto, sin endpoint de catálogo, y su ToS prohíbe la
   extracción masiva.
 
+- **S10** — «realmente es una cesta de la compra virtual, para saber en funcion del precio
+  del producto y la decisión del usuario donde comprar». La cesta **es nuestra**, no de la
+  tienda: una lista de artículos que el usuario elige, con la que se calcula **una cesta
+  candidata por supermercado** (mismos artículos, precio de cada cadena, qué falta) para que
+  el usuario decida dónde comprar. Las cestas de tienda (`dia cart`, `mas cart`) dejan de ser
+  el objetivo y pasan a ser el **paso de entrega** posterior, solo para la cadena elegida.
+
 ## Hechos verificados que condicionan la implementación
 
 DIA (`GET https://www.dia.es/api/v1/search-back/search?q=<term>`): JSON anónimo, sin
@@ -90,6 +97,69 @@ y `total_count` verificados (245 resultados para «leche», 20 por página).
 - [ ] **T13** Presencia de precio en el contrato: hoy un producto sin precio se serializa
       `"price": 0` y se lee como 0,00 €. Diferido hasta que termine `alcampo` (toca
       `internal/contract`).
+- [ ] **T14** Alinear `aldi` con S3: todavía recorta `--limit` en silencio con su propio
+      `clampLimit` y `mas --help` sale con 1. Ruta: `gentle-ai-worker`. **Hecho.**
+- [ ] **T15** Barrido final de `--help` en cualquier posición (`-h`/`--help`) para los seis
+      binarios: hoy `aldi search --help`, `dia search --help` y `alcampo` (revisar) salen con
+      2 y escriben la ayuda en stderr; `mas` ya sale con 0 y la escribe en stdout. Un solo
+      sentido para toda la familia.
+- [ ] **T16** REA sobre la **app Android de DIA**. **Hecho, con giro:** la app apunta al *mismo*
+      `www.dia.es`, pero su búsqueda es `GET /api/v1/search-back/search/reduced` con cabeceras
+      de dispositivo (`X-Id-Application-From: 8`, `X-Mob-Platform-From: OneApp-Android`,
+      `order_source: app`, `x-avoid-seo-redirections`, `X-Mob-Os-Version`,
+      `X-Mob-Application-Version`, `X-Mob-Manufacturer`, `X-Mob-Deviceid`,
+      `X-Retail-Visitor-Id`, `X-Device-Trace-Id`, `X-App-Supports-L1-As-L2`) y `User-Agent:
+      okhttp/4.12.0`. Sonda del padre: **5 de 5 HTTP 200**, 27 KB, con `search_items`,
+      `pagination`, `total_items`, `sort` y `suggestions`. Con `curl` (TLS normal), así que la
+      huella de uTLS **no era necesaria**. Documento: `odd/research/dia-android-api.md`.
+- [ ] **T19** Mover `dia` al endpoint `reduced` con las cabeceras de la app y **retirar uTLS**
+      (`go.mod` vuelve a stdlib); fixture real y smoke de cinco intentos. Ruta:
+      `gentle-ai-worker`.
+- [ ] **T21** Corregir los hallazgos de la verificación de la familia (T18):
+      (1) `dia` emite `pricePerUnit` sin `unit` cuando `measure_unit` es `LAVADO` o `100 ML.`
+      (25/30 hits de «detergente»): sin unidad conocida no hay precio unitario;
+      (2) **`mas` inventa €/L** desde el nombre (`HANDY BAG 30l 12ud` → 0,09 €/L, `IFA SABE
+      10ux100ml` → 13,5 L): se retira el parseo por nombre —MAS no publica tamaño de venta—
+      y se documenta que MAS no da €/unidad;
+      (3) `carrefour` afirma `available: true` sin dato de stock: `available` pasa a
+      tri-estado (ausente = desconocido);
+      (4) guard muerto de recorte en `internal/carrefour`.
+- [ ] **T22** Corregir el README: `price_range` **no** devuelve 500 (lo que no existe es
+      `final_price` dentro de él), el ejemplo JSON muestra campos que `mas` no rellena,
+      «no hay paginación» contradice `--page`, «todas sus rutas» ignora el 200 de
+      `robots.txt` y `/graphql` sin barra da 301. **Hecho.**
+- [ ] **T23** Identificador común en el contrato: `ean` y `size` opcionales, rellenos solo
+      donde la cadena los publica (carrefour ya los trae de Superfudis; `mas` hay que pedir
+      el atributo en la selección GraphQL). Base de la fusión entre cadenas. Ruta:
+      `gentle-ai-worker`.
+- [ ] **T24** Agregador `multisuper find <term> --json`: seis cadenas en paralelo, timeout
+      por cadena, resultado **parcial** con el estado de cada una, y errores
+      máquina-legibles (`{"store":"dia","error":{"code":"blocked","status":403}}`).
+      Ruta: `gentle-ai-worker` (paquetes nuevos, disjunto de T23).
+- [ ] **T25** Cesta en `mas`: `createEmptyCart`, `addProductsToCart` sobre `itemsV2`,
+      `cart get`, `cart clear`. **Parcial, por culpa de la tienda:** `add` es rechazado para
+      todo SKU (`UNDEFINED: La cantidad solicitada no está disponible`; `only_x_left_in_stock`
+      nulo, sin puntos de recogida). La tienda añade con un POST de formulario a
+      `/checkout/cart/add`, no con GraphQL. `get`/`clear` funcionan en vivo.
+- [ ] **T26** Cesta en `dia`: **hecho y verificado en vivo**. Formas leídas del APK
+      (`ItemAddRequest{quantity, sku_id, position}`): `GET checkout-back/cart/reduced` (único
+      payload con líneas), `POST|PUT cart/current/item`, `DELETE cart/current/item/{skuId}`,
+      `DELETE cart/current/empty-cart`. Identidad = cookie `session_id` (DIA la emite en la
+      primera llamada; `ak_bmsc` no hace falta), persistida `0600`. Errores de DIA
+      (`206 VALIDATION_ERROR`, `unavailable`, `max_quantity_in_stock`) se reportan literales.
+      Secuencia real: add 1 → 4,98 €; update 2 → 9,96 €; remove → 0,00 €; clear → `{cleared:true}`.
+
+- [ ] **T27** Cesta **virtual** de comparación (S10): **hecho** (`ee51b27`). En vivo: DIA 4,17 €
+      (3/3), MAS 4,38 € (3/3), ALDI 4,88 € (3/3), LIDL 2/3, ALCAMPO `quota`, CARREFOUR
+      `timeout`. Descubrió el problema real: «huevos» se emparejó con *huevos de chocolate*
+      (ALDI, 2,99 €) y con un *cuecehuevos* (LIDL, 11,99 €).
+- [ ] **T28** Lista de candidatos y elección explícita (decisión del usuario):
+      (1) modo `basket candidates --candidates N` que devuelve, por artículo y cadena, los N
+      candidatos puntuados con id, nombre y precio;
+      (2) la cesta acepta entradas fijadas `{"store","id","name","quantity"}` junto a las de
+      `query`, y una entrada fijada se resuelve confirmando el **id** (si no aparece, la cadena
+      responde `stale`, no `missing`).
+      Así el emparejamiento deja de ser una apuesta silenciosa. Ruta: `gentle-ai-worker`.
 
 ## Log
 
@@ -118,3 +188,14 @@ y `total_count` verificados (245 resultados para «leche», 20 por página).
   El agregador busca un producto; lo demás se añade cuando la web lo pida.
 - **Deuda asumida:** MAS necesita derivar €/kg del nombre del producto (DIA lo da hecho).
   Es la pieza frágil: exige tests de tabla propios y no puede inventar unidades.
+- **L7** **Decisión del usuario:** «El usuario elige de una lista de candidatos» — la máquina
+  propone N candidatos puntuados por artículo y cadena, y la cesta admite la elección
+  explícita por `id`. El emparejamiento automático sigue existiendo como propuesta, nunca
+  como verdad.
+- **L6** (literal) «realmente es una cesta de la compra virtual, para saber en funcion del
+  precio del producto y la decisión del usuario donde comprar»
+- **Corrección de rumbo por L6:** las cestas de tienda (`dia cart` en 21a291b, `mas cart` en
+  77caf46) **no eran el objetivo**. Se conservan como paso de entrega, pero la pieza central
+  es la cesta virtual (T27): el usuario elige artículos y el sistema le dice **cuánto le
+  costaría cada supermercado y qué le faltaría**. El emparejamiento entre cadenas (nombre +
+  `size`, ya que solo Carrefour tiene EAN) pasa a ser la pieza crítica, no un extra.
