@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -121,10 +122,12 @@ func (s *server) handleCaps(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, capsDoc{Chains: capabilities.All()})
 }
 
-// searchRequest is /api/search's body: a term and how many hits per chain.
+// searchRequest is /api/search's body: a term, how many hits per chain, and which chains
+// to ask. An empty Stores asks every chain, so the CLIs' shape still works.
 type searchRequest struct {
-	Term  string `json:"term"`
-	Limit int    `json:"limit"`
+	Term   string   `json:"term"`
+	Limit  int      `json:"limit"`
+	Stores []string `json:"stores"`
 }
 
 // handleSearch fans one term out to the six chains and returns the aggregate document the
@@ -150,8 +153,38 @@ func (s *server) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), s.requestLimit)
 	defer cancel()
-	res := aggregate.Find(ctx, req.Term, req.Limit, s.chainTimeout, s.cachedChains("search", fresh(r)))
+	chains, err := s.selectChains(req.Stores)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	res := aggregate.Find(ctx, req.Term, req.Limit, s.chainTimeout, s.cachedChains("search", fresh(r), chains))
 	writeJSON(w, http.StatusOK, res)
+}
+
+// selectChains narrows the fan-out to the chains the shopper marked, in the server's own
+// order. No list means every chain. A name this server does not serve is the caller's
+// mistake: asking the remaining chains anyway would answer a question nobody asked, and
+// would spend their quota doing it.
+func (s *server) selectChains(stores []string) ([]aggregate.Chain, error) {
+	if len(stores) == 0 {
+		return s.chains, nil
+	}
+	want := make(map[string]bool, len(stores))
+	for _, name := range stores {
+		name = strings.ToLower(strings.TrimSpace(name))
+		if !slices.Contains(s.storeNames, name) {
+			return nil, fmt.Errorf("unknown store %q: this server serves %s", name, strings.Join(s.storeNames, ", "))
+		}
+		want[name] = true
+	}
+	out := make([]aggregate.Chain, 0, len(want))
+	for _, c := range s.chains {
+		if want[c.Store] {
+			out = append(out, c)
+		}
+	}
+	return out, nil
 }
 
 // handleCandidates proposes scored products per line and chain, so the user can pin the
@@ -163,7 +196,7 @@ func (s *server) handleCandidates(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), s.requestLimit)
 	defer cancel()
-	res := basket.Candidates(ctx, req, s.cachedChains("candidates", fresh(r)), s.candidates, s.chainTimeout)
+	res := basket.Candidates(ctx, req, s.cachedChains("candidates", fresh(r), s.chains), s.candidates, s.chainTimeout)
 	writeJSON(w, http.StatusOK, res)
 }
 
@@ -176,7 +209,7 @@ func (s *server) handleBasket(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), s.requestLimit)
 	defer cancel()
-	res := basket.Price(ctx, req, s.cachedChains("basket", fresh(r)), basket.DefaultCandidates, s.chainTimeout)
+	res := basket.Price(ctx, req, s.cachedChains("basket", fresh(r), s.chains), basket.DefaultCandidates, s.chainTimeout)
 	writeJSON(w, http.StatusOK, res)
 }
 

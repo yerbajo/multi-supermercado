@@ -79,9 +79,12 @@ func (c *cache) put(key string, res contract.Result, err error) {
 // one). A failure is cached too: Carrefour's quota is 3/min and Alcampo re-arms its WAF,
 // so asking the same thing again inside the TTL must cost nothing, failed or not. A
 // request that means to retry says so with ?fresh=1 and reads past the cache.
-func (s *server) cachedChains(endpoint string, fresh bool) []aggregate.Chain {
-	out := make([]aggregate.Chain, len(s.chains))
-	for i, c := range s.chains {
+//
+// chains is the fan-out for this request: a search asks only the chains the shopper
+// marked, and a chain left out never gets a cache entry either.
+func (s *server) cachedChains(endpoint string, fresh bool, chains []aggregate.Chain) []aggregate.Chain {
+	out := make([]aggregate.Chain, len(chains))
+	for i, c := range chains {
 		out[i] = aggregate.Chain{
 			Store: c.Store,
 			Searcher: cachedSearcher{

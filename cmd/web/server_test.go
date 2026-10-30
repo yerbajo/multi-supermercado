@@ -178,6 +178,59 @@ func TestSearchEndpoint(t *testing.T) {
 	}
 }
 
+// TestSearchOnlyAsksTheSelectedChains is S17: the front end narrows the fan-out to the
+// chains the shopper marked. A chain left out costs no request, never appears in the
+// document and does not reach its count, and a name the server does not serve is a 400
+// instead of a silent empty search.
+func TestSearchOnlyAsksTheSelectedChains(t *testing.T) {
+	srv, answering, quota, _ := testServer(t)
+	h := srv.handler()
+
+	rec := do(t, h, http.MethodPost, "/api/search", `{"term":"leche","limit":2,"stores":["dia"]}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body)
+	}
+	var res aggregate.Result
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(res.Results) != 1 || res.Results[0].Store != "dia" || res.Results[0].Error != nil {
+		t.Fatalf("a search for one selected chain returned %+v", res.Results)
+	}
+	if res.Count != 2 {
+		t.Fatalf("count %d, want the 2 hits of the selected chain", res.Count)
+	}
+	if got := answering.callCount(); got != 1 {
+		t.Fatalf("dia was asked %d times, want 1", got)
+	}
+	if got := quota.callCount(); got != 0 {
+		t.Fatalf("carrefour was asked %d times though it was not selected, want 0", got)
+	}
+
+	// The name has to be one this server serves: a typo is the caller's problem, and it must
+	// not become a search in the chains that happen to be left.
+	rec = do(t, h, http.MethodPost, "/api/search", `{"term":"leche","stores":["mercadona"]}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unknown store: status %d, want 400: %s", rec.Code, rec.Body)
+	}
+	var doc errDoc
+	if err := json.Unmarshal(rec.Body.Bytes(), &doc); err != nil || doc.Error == "" {
+		t.Fatalf("error envelope: %s", rec.Body)
+	}
+	if got := answering.callCount(); got != 1 {
+		t.Fatalf("an unknown store still searched dia %d times, want 1", got)
+	}
+
+	// No list at all keeps the previous behaviour: every chain is asked.
+	rec = do(t, h, http.MethodPost, "/api/search", `{"term":"leche","limit":1}`)
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(res.Results) != 2 {
+		t.Fatalf("a search with no stores asked %d chains, want both", len(res.Results))
+	}
+}
+
 // TestSearchCacheHit is the quota guard: the same search twice costs one network pass per
 // chain, and the answer is reused until the injected clock passes the TTL.
 func TestSearchCacheHit(t *testing.T) {
