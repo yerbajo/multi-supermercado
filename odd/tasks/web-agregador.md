@@ -7,10 +7,11 @@ su **cesta virtual** para decidir dónde comprar. Antes de buscar, declara **dó
 
 ## Specs
 
-- **S11** — «lo ideal es que se introduzca el codigo postal y se seleccionen los supermercados
-  de cada una de las cadenas mas cercano, a partir de ahi la busqueda». Flujo: código postal →
-  tienda/almacén más cercano **por cadena** → catálogo y precios **de esa tienda**. La cadena
-  que no permita fijar tienda debe decirlo, no fingir que la tiene.
+- **S11** — *Sustituida por S17 (L9).* «lo ideal es que se introduzca el codigo postal y se
+  seleccionen los supermercados de cada una de las cadenas mas cercano, a partir de ahi la
+  busqueda». Flujo: código postal → tienda/almacén más cercano **por cadena** → catálogo y
+  precios **de esa tienda**. La cadena que no permita fijar tienda debe decirlo, no fingir que
+  la tiene.
 - **S12** — «Usa las skills de better-ui y demas para que la web sea de verdad atractiva». El
   diseño pasa por `better-ui`, `better-interface`, `better-layout`, `better-typography`,
   `better-colors`, `better-accessibility` y `better-writing`, y por `gentle-design` para las
@@ -32,6 +33,19 @@ su **cesta virtual** para decidir dónde comprar. Antes de buscar, declara **dó
   hay «la cadena más barata para tu cesta completa», hay **una cesta por supermercado** y cada
   una tiene su propio total. Mover un artículo a otra cadena es una acción explícita del
   usuario, nunca algo que el sistema decida solo.
+
+- **S16** — «quiero que se muestren los logos de los supermercados en la zona izquierada». Cada
+  tarjeta de supermercado lleva su marca en la **columna izquierda** de la tarjeta, y esa marca
+  sigue siendo el nombre accesible de la cadena (`role="img"` + `aria-label`), no un adorno.
+
+- **S17** — «eliminees la parte de seleccionar el codigo postal y que simplemente pueda ser
+  seleccionados los supermercados donde el user quiere buscar. si un supermercado no es
+  seleccionado o no puede seleccionarse ya que su api no es funcional». No hay paso de código
+  postal: la elección de la persona es **qué supermercados se consultan**. Una cadena sin marcar
+  no se consulta — no gasta su cuota y no aparece en los resultados ni en su recuento. Una
+  cadena cuya API no permite buscar no se puede marcar y su tarjeta dice el motivo; nunca entra
+  en una búsqueda por otra vía. La frase final de la petición queda cortada (L9): no dice qué
+  debe pasar además con esa cadena, y no se inventa nada más que «no se consulta».
 
 ## Lo que ya existe (base de la web)
 
@@ -113,6 +127,22 @@ y ranking), `multisuper basket candidates` (candidatos para que el usuario elija
       línea. Sin esto, la web no puede dejar elegir producto por cadena, que es justo lo que
       el usuario pidió (L7).
 
+- [x] **T40** Iteración de la web pedida en L9 (S16, S17): marcas de supermercado en la columna
+      izquierda de su tarjeta; fuera el formulario de código postal; las tarjetas de cadena pasan
+      a ser **el selector de la búsqueda** (marcada = se consulta, sin marcar = no se consulta, y
+      sin capacidad de búsqueda = deshabilitada con su motivo). `/api/search` acepta `stores` para
+      que una cadena sin marcar no gaste una petición. Ruta: orchestrator inline. **Hecho:**
+      commits `fa20c97` (API) y `a94d141` (web), más el de documentación. Verificación: `go test
+      ./...` en verde con el test nuevo del fan-out filtrado y el del selector; en vivo con
+      navegador sin cabeza: 6 tarjetas con la marca en la columna izquierda (medido por
+      `getBoundingClientRect`), contador «6 de 6» → «1 de 6» al desmarcar cinco, payload
+      `{"stores":["dia"]}` y 10 resultados en «1 de 1 supermercados», sin marcar ninguna la
+      búsqueda se detiene sin petición, y una cadena con `search:false` (respuesta de `/api/caps`
+      interceptada) se pinta sin interruptor, con «Su API no permite buscar», y queda fuera del
+      payload («5 de 6»). La cesta sigue leyéndose por cadena después de desmarcar DIA. Chequeo
+      diferencial contra el commit base para lo que comparte `cachedChains`: `/api/basket` y
+      `/api/candidates` devuelven documentos idénticos (sin `elapsedMs`).
+
 - [ ] **T39** Que el resultado se pueda recorrer (consecuencia de T38): con «leche de soja» las dos
       IFA (`044616`, `044619`) están en las posiciones **9 y 10** de MAS, no entre las seis
       primeras, porque diez bebidas empatan en cobertura 2/2 y la relevancia de la tienda ordena
@@ -121,8 +151,20 @@ y ranking), `multisuper basket candidates` (candidatos para que el usuario elija
       ofrece «ver más» (20) por cadena, para que lo que existe sea alcanzable sin mentir sobre la
       relevancia. Ruta: `gentle-ai-worker`.
 
+## Entrega (2026-10-30)
+
+Esta iteración (T40) va en tres commits sobre `feat/supermercados-cli-limpia`: `fa20c97` (API),
+`a94d141` (web) y el de esta documentación. Cada uno es revisable por separado y deja la suite
+en verde, que es el corte que el aviso de tamaño del gancho pide registrar; el diff acumulado
+contra `main` es la entrega de la rama entera, ya descrita en `odd/tasks/supermercados-cli.md`.
+
 ## Log
 
+- **L9** (literal; la petición termina a media frase) «vamos a realizar una iteración a la cesta
+  de la compra. quiero que se muestren los logos de los supermercados en la zona izquierada.
+  Tambien quiero que eliminees la parte de seleccionar el codigo postal y que simplemente pueda
+  ser seleccionados los supermercados donde el user quiere buscar. si un supermercado no es
+  seleccionado o no puede seleccionarse ya que su api no es funcional»
 - **Handoff de diseño (2026-10-05):** el lienzo elige `design/web-agregador/03-tienda-cercana.html`
   («Tienda cercana»: código postal y tiendas por cadena primero). Se implementa esa dirección
   sobre el backend común; `01-comparador-denso.html` y `02-decision-guiada.html` quedan como

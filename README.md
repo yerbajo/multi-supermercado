@@ -89,12 +89,20 @@ remotas): `/api/caps`, `/api/search`, `/api/candidates`, `/api/basket` y `/api/c
 Caché de 60 s por consulta con `?fresh=1` para el reintento, porque Carrefour tiene 3
 peticiones por minuto y Alcampo cierra la puerta con WAF.
 
-La interfaz expresa el producto tal como es: **código postal y tiendas primero**, cada cadena
-diciendo qué hace con tu zona (solo DIA reprecia; ALDI distingue región; MAS y LIDL localizan
-tienda sin cambiar precio; ALCAMPO y CARREFOUR no permiten fijar nada y por eso **no muestran
-selector**). Después, búsqueda con el icono de cesta en cada fila: pulsarlo añade ese producto a
-la cesta de **esa** cadena. La cesta se lee supermercado a supermercado, con el subtotal de cada
-uno, y los productos elegidos van marcados como tales.
+`POST /api/search` acepta `{"term":"leche","limit":10,"stores":["dia","mas"]}`: el cuerpo
+es el del agregador más `stores`, la lista de cadenas que se consultan. Sin `stores` se
+preguntan las seis; con una cadena que este servidor no sirve, `400` en vez de una búsqueda a
+medias. Cada cadena pedida conserva su código de error y una cadena no pedida no gasta nada.
+
+La interfaz expresa el producto tal como es: **las tarjetas de cadena son el selector de la
+búsqueda**. Cada tarjeta lleva su marca a la izquierda, el interruptor para buscarla y una
+frase con lo que esa cadena hace con la zona (solo DIA reprecia; ALDI distingue región; MAS y
+LIDL localizan tienda sin cambiar precio; ALCAMPO y CARREFOUR no permiten fijar nada). Una
+cadena sin marcar **no se consulta**: no gasta su cuota ni aparece en los resultados, porque el
+front manda a `/api/search` solo las marcadas (`stores`). Después, búsqueda con el icono de
+cesta en cada fila: pulsarlo añade ese producto a la cesta de **esa** cadena. La cesta se lee
+supermercado a supermercado, con el subtotal de cada uno, y los productos elegidos van marcados
+como tales.
 
 ## Relevancia y vocabulario
 
