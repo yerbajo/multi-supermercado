@@ -32,9 +32,21 @@ const (
 	// DefaultRegion is the peninsula catalogue, the region aldi.es serves by default.
 	DefaultRegion = "pen"
 
-	// searchAppID and searchKey are the public search-only credentials the site's own
-	// front-end sends (aldi.es chunk 40895). They are not secrets, but they rotate with
-	// the bundle: a 403 means they changed, see the error text of ErrSearchKey.
+	// searchAppID and searchKey are ALDI's **public search-only** Algolia credentials: the
+	// same pair aldi.es ships in its own front-end bundle (chunk 40895), which any visitor
+	// downloads. They are published deliberately by ALDI, so keeping them in this repository
+	// reveals nothing that aldi.es does not already serve to every browser.
+	//
+	// What they can and cannot do, measured: a search works (200); an administrative call on
+	// the same index, GET /1/indexes/<index>/settings, answers
+	// `403 {"message":"Method not allowed with this API key"}`. The key is restricted to
+	// search: it cannot read settings, add, update or delete records.
+	//
+	// The real risk is not exposure but **rotation**: ALDI regenerates them when it rebuilds the
+	// bundle, and then search fails with ErrSearchKey (a 401/403 with a clear message) until
+	// someone refreshes these two constants from the live bundle. If that ever happens, the
+	// replacement is found the same way they were: grep the chunks served by aldi.es for
+	// `appId` and `apiKey`.
 	searchAppID = "L9KNU74IO7"
 	searchKey   = "83df5acd172c42ab174afa4583232b5d"
 	// searchHost serves the Algolia search API for searchAppID.

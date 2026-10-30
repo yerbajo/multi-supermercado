@@ -286,6 +286,30 @@ falsas de este README).
 | cesta virtual | El payload sigue calculando `coverage` y `ranking` que la web ya no lee, porque nacieron para el modelo anterior de cesta única. Es deuda pendiente de limpieza, no un dato que el consumidor deba usar. |
 | cestas | Solo posibles donde hay venta online: `dia` **funciona**; `mas` solo lee; `lidl` y `alcampo` por verificar. **ALDI no vende online** y **Carrefour está bloqueado** (y Superfudis no gestiona cestas): esas dos nunca tendrán cesta, solo precio. |
 
+## Credenciales y lo que nunca se publica
+
+Este repositorio es público, así que conviene tener explícito qué viaja y qué no.
+
+**La única credencial en el código** es el par `appId`/`apiKey` de Algolia de ALDI
+(`internal/aldi/aldi.go`). Son las credenciales **públicas de solo búsqueda** que aldi.es
+sirve en su propio bundle a cualquier visitante: no revelan nada que la web de ALDI no
+dé ya a cada navegador. Lo medido: la búsqueda funciona y una llamada de administración
+sobre el mismo índice (`GET /1/indexes/<índice>/settings`) responde
+`403 «Method not allowed with this API key»` — no puede leer ajustes ni añadir, modificar
+ni borrar registros. El riesgo real no es la exposición sino la **rotación**: cuando ALDI
+regenera el bundle, la búsqueda falla con un error explícito hasta que se actualizan las
+dos constantes.
+
+**Lo que nunca se guarda en el repositorio**: contraseñas, tokens de sesión ni cookies de
+ninguna tienda. La sesión anónima de DIA vive en `~/.config/multisuper/dia-cart.json` con
+permisos `0600` y está en `.gitignore`; el CLI no hace login, ni checkout, ni pedido en
+ninguna cadena. Los fixtures de `testdata/` son respuestas reales de catálogo, sin cabeceras
+de sesión; el único identificador que aparece es el de un carrito anónimo de DIA ya caducado.
+
+**Lo que se queda fuera a propósito** (`.gitignore`): la herramienta de tablero y las notas
+de investigación. Las notas describen endpoints, cabeceras y flujo de autenticación de la app
+privada de una cadena: son útiles para trabajar y no tienen por qué ser públicas.
+
 ## Origen
 
 Contrato de datos inspirado en `jgalea/grocery-cli` (MIT) y en `ivorpad/mercadona-cli`, que
