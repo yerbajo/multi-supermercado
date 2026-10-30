@@ -76,25 +76,30 @@ func TestNoFramework(t *testing.T) {
 }
 
 // TestAccessibilityStatics pins the promises that are visible in the source: a polite
-// live region, a label on the postal field, and reduced motion respected.
+// live region, a label on the search field and on every chain switch, and reduced motion
+// respected. S17 removed the postal step, so its field is gone, not hidden.
 func TestAccessibilityStatics(t *testing.T) {
 	html := read(t, "index.html")
 	js := read(t, "app.js")
 	css := read(t, "styles.css")
 	for what, check := range map[string][2]string{
-		"live region":     {html, `aria-live="polite"`},
-		"postal label":    {html, `<label for="cp">`},
-		"search label":    {html, `<label for="q">`},
-		"remove label":    {js, `aria-label="Quitar `},
-		"reduced motion":  {css, "prefers-reduced-motion: reduce"},
-		"visible focus":   {css, ":focus-visible"},
-		"skip link":       {html, `class="skip"`},
-		"retry offer":     {js, `data-retry=`},
-		"postal no claim": {html, "no filtra precios"},
-		"dia zone claim":  {html, "no es tu zona"},
+		"live region":    {html, `aria-live="polite"`},
+		"search label":   {html, `<label for="q">`},
+		"chain switch":   {js, `aria-label="Buscar en `},
+		"remove label":   {js, `aria-label="Quitar `},
+		"reduced motion": {css, "prefers-reduced-motion: reduce"},
+		"visible focus":  {css, ":focus-visible"},
+		"skip link":      {html, `class="skip"`},
+		"retry offer":    {js, `data-retry=`},
+		"dia zone claim": {html, "no es tu zona"},
 	} {
 		if !strings.Contains(check[0], check[1]) {
 			t.Errorf("%s: missing %q", what, check[1])
+		}
+	}
+	for _, gone := range []string{`id="cp"`, "código postal", "cp-status", "postal-form"} {
+		if strings.Contains(html, gone) || strings.Contains(js, gone) {
+			t.Errorf("the page still has a postal-code step: %q", gone)
 		}
 	}
 }
@@ -310,32 +315,64 @@ func TestStoreCardCopyIsNotRepeated(t *testing.T) {
 	}
 }
 
-// TestStoreCardCounterIsNotAContradiction pins the other half of T37: the counter over the
-// store cards names the capability («cadenas permiten elegir tienda»), not the chosen
-// stores alone, so it cannot read as a contradiction of the «sin tienda que elegir» cards.
-func TestStoreCardCounterIsNotAContradiction(t *testing.T) {
+// TestTheCardsAreTheSearchSelector pins S17's mechanism: the card's switch decides which
+// chains the page asks. The counter is how many chains the next search will ask, a chain
+// the table cannot search has no switch and says why, and an empty selection stops the
+// search instead of quietly asking all six.
+func TestTheCardsAreTheSearchSelector(t *testing.T) {
 	js := read(t, "app.js")
-	start := strings.Index(js, "function updatePicked(")
-	if start < 0 {
-		t.Fatal("app.js has no updatePicked")
-	}
-	body := js[start:]
-	body = body[:strings.Index(body, "\n}")]
-	for _, want := range []string{"cadenas permiten elegir tienda", "PICKABLE.has(s)", "elegidas"} {
-		if !strings.Contains(body, want) {
-			t.Errorf("the store counter is missing %q", want)
+
+	pick := fnBody(t, js, "function picked(")
+	for _, want := range []string{"canSearch(store)", "!state.off.has(store)", "chainOrder()"} {
+		if !strings.Contains(pick, want) {
+			t.Errorf("picked() is not the one list of chains to ask: missing %q", want)
 		}
 	}
-	if strings.Contains(js, `" tiendas elegidas"`) {
-		t.Error("app.js still counts only the chosen stores")
+	guard := fnBody(t, js, "function canSearch(")
+	if !strings.Contains(guard, "cap.search !== false") {
+		t.Error("canSearch ignores the capability table, so a chain that cannot search could still be asked")
 	}
-	// The number is live: ticking or clearing a store card moves the counter, and the same
-	// choice takes the chain out of the ranking.
-	if !strings.Contains(js, "state.chosen[box.dataset.chain] = box.checked") {
-		t.Error("the store checkbox does not update the choice, so the counter cannot be live")
+
+	counter := fnBody(t, js, "function updatePicked(")
+	for _, want := range []string{"picked().length", "chainOrder().length", `" supermercados"`} {
+		if !strings.Contains(counter, want) {
+			t.Errorf("the counter is missing %q", want)
+		}
 	}
-	if !strings.Contains(js, "updatePicked()") {
-		t.Error("nothing refreshes the store counter")
+
+	// The switch is the choice, and it is live.
+	for _, want := range []string{"state.off.add(store)", "state.off.delete(store)", "updatePicked()"} {
+		if !strings.Contains(js, want) {
+			t.Errorf("the switch does not move the selection: missing %q", want)
+		}
+	}
+
+	card := fnBody(t, js, "function shopCard(")
+	for what, want := range map[string]string{
+		"an accessible switch":  `aria-label="Buscar en ${name}"`,
+		"the table as the gate": "canSearch(cap.store)",
+		"a stated reason":       "Su API no permite buscar",
+		"the mark on the left": `<span class="shop-logo">${logo(cap.store)}</span>
+      <span class="shop-body">`,
+	} {
+		if !strings.Contains(card, want) {
+			t.Errorf("%s: shopCard is missing %q", what, want)
+		}
+	}
+
+	// The old store-picker prose is gone, not renamed: there is no store to pick without a
+	// postal code, and no card promises one.
+	for _, gone := range []string{"PICKABLE", "cadenas permiten elegir tienda", "Sin tienda que elegir", "Usar esta tienda"} {
+		if strings.Contains(js, gone) {
+			t.Errorf("app.js still carries the store picker's copy: %q", gone)
+		}
+	}
+
+	search := fnBody(t, js, "async function runSearch(")
+	for _, want := range []string{"const stores = picked()", "stores: stores", "Marca al menos un supermercado"} {
+		if !strings.Contains(search, want) {
+			t.Errorf("the search does not ask only the marked chains: missing %q", want)
+		}
 	}
 }
 
@@ -371,7 +408,7 @@ func TestSearchPagesPerChain(t *testing.T) {
 	more := fnBody(t, js, "async function pageMore(")
 	for _, want := range []string{
 		"nextLimit(page.limit)",
-		"{ term: page.term, limit: limit }",
+		"{ term: page.term, limit: limit, stores: [store] }",
 		"appendHits(",
 		"updateSearchStatus()",
 	} {

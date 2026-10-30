@@ -49,52 +49,39 @@
     </svg>
     multisuper
   </p>
-  <p class="zone">Compras en <b id="zone-cp">tu zona</b></p>
 </header>
 
 <main id="main">
   <section class="hero" aria-labelledby="t">
     <div>
-      <h1 id="t">Compra en la tienda de tu barrio</h1>
-      <p class="lede">Dinos dónde estás y qué tienda de cada cadena quieres usar. Buscamos los precios que cada cadena publica hoy, y te decimos qué haría con tu zona cada una.</p>
-
-      <form class="postal-row" id="postal-form" novalidate>
-        <div class="field">
-          <label for="cp">Tu código postal</label>
-          <input id="cp" name="cp" type="text" inputmode="numeric" autocomplete="postal-code"
-                 maxlength="5" pattern="[0-9]{5}" aria-describedby="cp-fine">
-        </div>
-        <button class="btn btn-primary" type="submit">Ver tiendas cercanas</button>
-      </form>
-      <p class="fine" id="cp-fine">En esta fase el código postal no filtra precios: se guarda y cada tarjeta de abajo dice qué haría esa cadena con él.</p>
-      <p class="fine" id="cp-status" role="status"></p>
+      <h1 id="t">Compra en los supermercados que elijas</h1>
+      <p class="lede">Marca los supermercados donde quieres buscar. Te decimos qué hace cada cadena con la zona, y montamos una cesta por supermercado con lo que de verdad cuesta en cada uno.</p>
     </div>
 
     <div class="steps">
       <h2>Cómo funciona</h2>
       <ol>
-        <li><span><b>Escribes tu código postal</b>y ves la tienda más cercana de cada cadena.</span></li>
-        <li><span><b>Eliges tus tiendas</b>Una por cadena, la que te pilla de paso.</span></li>
-        <li><span><b>Montas la cesta</b>Con el producto que quieras en cada cadena y el total en cada una.</span></li>
+        <li><span><b>Marca tus supermercados</b>Los marcados son los únicos que se consultan.</span></li>
+        <li><span><b>Busca un producto</b>El mismo término en cada supermercado marcado.</span></li>
+        <li><span><b>Monta la cesta</b>Un artículo en la cesta de la cadena que lo vende, con su total.</span></li>
       </ol>
     </div>
   </section>
 
   <section class="sect" aria-labelledby="shops-h">
     <div class="sect-head">
-      <h2 id="shops-h">Tiendas cerca de <span id="cp-head">tu zona</span></h2>
-      <span class="tag">ejemplo</span>
-      <span class="hint" id="picked">Cargando tiendas…</span>
+      <h2 id="shops-h">Supermercados</h2>
+      <span class="hint" id="picked">Cargando supermercados…</span>
     </div>
-    <p class="sub">La tienda, la dirección y la distancia son un <strong>ejemplo</strong>: el localizador por cadena todavía no está en el modelo de datos. Lo que sí está comprobado es qué hace cada cadena con tu zona.</p>
+    <p class="sub">Cada tarjeta es una cadena: su marca, qué hace con la zona y el interruptor para buscarla. Una cadena sin marcar no se consulta, así que no gasta su cuota ni aparece en los resultados.</p>
     <ul class="shops" id="shops"></ul>
     <p class="warnline" id="shops-note" hidden></p>
   </section>
 
   <div class="bottom">
     <section class="panel" aria-labelledby="buscar-h">
-      <h2 id="buscar-h">Buscar en tus tiendas</h2>
-      <p class="sub">El mismo término se busca en las seis cadenas, cada una en el catálogo que publica hoy. El botón de la cesta de una fila añade ese producto a la cesta de esa cadena, y a ninguna otra.</p>
+      <h2 id="buscar-h">Buscar en tus supermercados</h2>
+      <p class="sub">El mismo término se busca en los supermercados que marcaste, cada uno en el catálogo que publica hoy. El botón de la cesta de una fila añade ese producto a la cesta de esa cadena, y a ninguna otra.</p>
       <form class="search-row" id="search-form" novalidate>
         <div class="field">
           <label for="q">Qué quieres comprar</label>
@@ -143,7 +130,7 @@
 </main>
 
 <footer>
-  <p>Los precios los publica cada cadena en el momento de la consulta; el total se suma en céntimos enteros. Las tiendas, direcciones y distancias son un <strong>ejemplo</strong> hasta que exista el localizador por cadena. La zona de DIA es la del servidor (28041) hasta que se fije: no es tu zona. Solo DIA tiene cesta de tienda real; las demás cadenas no la tienen.</p>
+  <p>Los precios los publica cada cadena en el momento de la consulta; el total se suma en céntimos enteros. Solo se consultan los supermercados marcados, y una cadena que no responde no cancela a las demás. La zona de DIA es la del servidor (28041) hasta que se fije: no es tu zona. Solo DIA tiene cesta de tienda real; las demás cadenas no la tienen.</p>
 </footer>
 
 <script src="app.js"></script>

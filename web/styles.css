@@ -83,8 +83,6 @@ button{font:inherit;color:inherit}
 .topbar{max-width:1160px;margin-inline:auto;padding:var(--sp-3) var(--sp-7);display:flex;align-items:center;gap:var(--sp-4);border-block-end:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:var(--sp-2);font-size:var(--text-ui);font-weight:600}
 .brand svg{display:block;color:var(--accent)}
-.topbar .zone{margin-inline-start:auto;font-size:var(--text-sm);color:var(--ink-2)}
-.topbar .zone b{color:var(--ink);font-variant-numeric:tabular-nums}
 
 main{max-width:1160px;margin-inline:auto;padding:var(--sp-2) var(--sp-7) 0}
 
@@ -113,13 +111,12 @@ main{max-width:1160px;margin-inline:auto;padding:var(--sp-2) var(--sp-7) 0}
 
 /* ---- hero ---- */
 .hero{
-  display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:var(--sp-7);align-items:start;
+  display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:var(--sp-7);align-items:center;
   background:var(--surface);border-radius:var(--r-3);box-shadow:var(--shadow-1);
   padding:var(--sp-7) var(--sp-7) var(--sp-6);margin-block-start:var(--sp-2);
 }
 .hero h1{max-width:22ch}
 .hero .lede{margin-block-start:var(--sp-3);max-width:58ch;color:var(--ink-2);text-wrap:pretty}
-.postal-row{display:flex;align-items:flex-end;gap:var(--sp-3);margin-block-start:var(--sp-5);flex-wrap:wrap}
 .field{display:flex;flex-direction:column;gap:var(--sp-1)}
 .field label{font-size:var(--text-sm);font-weight:600;color:var(--ink-2)}
 .field input{
@@ -129,8 +126,6 @@ main{max-width:1160px;margin-inline:auto;padding:var(--sp-2) var(--sp-7) 0}
 }
 .field input:hover{border-color:var(--accent)}
 .field input:focus-visible{outline:2px solid var(--focus);outline-offset:1px;border-color:var(--accent)}
-.hero .fine{margin-block-start:var(--sp-3);font-size:var(--text-xs);color:var(--ink-2);line-height:1.55;max-width:62ch}
-#cp-status{color:var(--accent);font-weight:600}
 .steps{background:var(--surface-2);border-radius:var(--r-2);padding:var(--sp-4)}
 .steps h2{font-family:var(--sans);font-size:var(--text-sm);text-transform:uppercase;letter-spacing:0.07em;color:var(--ink-2);font-weight:600}
 .steps ol{margin-block-start:var(--sp-3);display:flex;flex-direction:column;gap:var(--sp-3);counter-reset:s}
@@ -163,24 +158,28 @@ main{max-width:1160px;margin-inline:auto;padding:var(--sp-2) var(--sp-7) 0}
 .warnline{display:flex;align-items:flex-start;gap:var(--sp-2);margin-block-start:var(--sp-3);font-size:var(--text-xs);color:var(--warn);line-height:1.5}
 .warnline svg{flex:none;margin-block-start:2px}
 
-/* ---- store cards: 16px card, 16px padding, 6px inner controls ---- */
+/* ---- supermarket cards: mark on the left, the switch on its right ---- */
 .shops{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--sp-3);margin-block-start:var(--sp-4)}
 .shop{
   background:var(--surface);border-radius:var(--r-3);box-shadow:var(--shadow-1);
   overflow:hidden;display:flex;flex-direction:column;
 }
-.shop-label{display:block;padding:var(--sp-4) var(--sp-4) var(--sp-3);cursor:pointer;flex:1}
-/* The check row is as tall with a control as without one, so every card in a row puts its
-   logo on the same baseline; the mechanism sentence reserves two lines and the foot sits
-   on the bottom edge, so a shorter card never floats its chip. */
-.shop-check{display:flex;align-items:center;gap:var(--sp-2);margin-block-end:var(--sp-2);min-height:18px}
+/* The mark owns the left column of every card (S16), so the six marks line up in a column
+   and the body — switch, price scope, mechanism — starts on the same edge in all of them. */
+.shop-label{
+  display:grid;grid-template-columns:72px minmax(0,1fr);gap:var(--sp-3);align-items:start;
+  padding:var(--sp-4) var(--sp-4) var(--sp-3);cursor:pointer;flex:1;
+}
+.shop-logo{display:block}
+.shop-logo .logo{height:24px;width:72px}
+.shop-body{display:flex;flex-direction:column;gap:var(--sp-1);min-width:0}
+/* The switch row and the mechanism line are the same height with or without a control, so
+   the foot of every card in a row sits on the same line. */
+.shop-check{display:flex;align-items:center;gap:var(--sp-2);min-height:18px}
 .shop-check input{width:18px;height:18px;margin:0;accent-color:var(--accent);flex:none}
 .shop-check .lab{font-size:var(--text-xs);color:var(--ink-2);font-weight:600;text-transform:uppercase;letter-spacing:0.05em}
-.shop-name{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3)}
-.shop .logo{height:24px}
-.shop-name .dist{font-size:var(--text-sm);color:var(--ink-2);white-space:nowrap;text-align:end}
-.shop .addr{display:block;margin-block-start:var(--sp-1);font-size:var(--text-sm);color:var(--ink-2)}
-.shop .cap{display:block;margin-block-start:var(--sp-2);font-size:var(--text-xs);color:var(--ink-2);line-height:1.5;min-height:3em}
+.shop .dist{font-size:var(--text-sm);color:var(--ink-2)}
+.shop .cap{display:block;font-size:var(--text-xs);color:var(--ink-2);line-height:1.5;min-height:3em}
 .shop.no-pick .shop-label{cursor:default}
 .shop-foot{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);padding:0 var(--sp-4) var(--sp-3);flex-wrap:wrap}
 .shop-foot .tag{white-space:nowrap}
@@ -188,6 +187,7 @@ main{max-width:1160px;margin-inline:auto;padding:var(--sp-2) var(--sp-7) 0}
 .shop:has(input:checked){box-shadow:0 0 0 2px var(--accent),0 4px 12px -6px oklch(0.35 0.02 70 / 0.28)}
 .shop:has(input:checked) .shop-check .lab{color:var(--accent)}
 .shop.no-pick{background:var(--surface-2);box-shadow:none;border:1px dashed var(--line-strong)}
+.shop.no-pick .shop-logo .logo{opacity:0.55}
 
 /* ---- search + basket ---- */
 .bottom{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:var(--sp-4);margin-block-start:var(--sp-7);align-items:start}
@@ -277,7 +277,7 @@ main{max-width:1160px;margin-inline:auto;padding:var(--sp-2) var(--sp-7) 0}
 .stepper .q{min-width:26px;text-align:center;font-size:var(--text-ui);font-weight:600;font-variant-numeric:tabular-nums}
 .line-end{display:flex;align-items:center;gap:var(--sp-2)}
 
-/* ---- one basket per supermarket: the rows are separate baskets, never a ranking ---- */
+/* ---- supermarket rows are separate baskets, never a ranking ---- */
 .rank{margin-block-start:var(--sp-3);display:flex;flex-direction:column;gap:var(--sp-2)}
 .row{
   display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;
@@ -288,10 +288,6 @@ main{max-width:1160px;margin-inline:auto;padding:var(--sp-2) var(--sp-7) 0}
 .row .who{display:flex;align-items:center;gap:var(--sp-3);min-width:0}
 .row .who .st{font-size:var(--text-xs);color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row .val{font-size:var(--text-lg);font-weight:600;font-variant-numeric:tabular-nums;text-align:end;justify-self:end}
-.row.is-out{background:var(--surface-2)}
-.row.is-out .logo{opacity:0.4}
-.row.is-out .st{text-decoration:line-through;text-decoration-thickness:from-font}
-.row.is-out .val{color:var(--ink-3);text-decoration:line-through;text-decoration-thickness:from-font}
 
 footer{max-width:1160px;margin-inline:auto;padding:var(--sp-5) var(--sp-7) var(--sp-6);margin-block-start:var(--sp-2);color:var(--ink-2);font-size:var(--text-xs);line-height:1.6;border-block-start:1px solid var(--line)}
 footer p{max-width:100ch}
