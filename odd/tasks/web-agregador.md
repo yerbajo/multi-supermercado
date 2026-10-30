@@ -18,6 +18,21 @@ su **cesta virtual** para decidir dónde comprar. Antes de buscar, declara **dó
 - **S13** — La web no inventa precios ni disponibilidad: si una cadena falla, se muestra su
   estado (bloqueada, sin cuota, sin cobertura) y la comparación sigue con las demás.
 
+- **S14** — «cuando el producto se añade ya desde un supermercado, en la cesta debe aparecer una
+  cesta agrupada por supermercado. El boton de elegir en X, que sea una cesta de la compra tipo
+  icono». La cesta se lee **por cadena**: una sección por supermercado con su marca, su subtotal
+  y las líneas que esa cadena resuelve; una misma línea puede aparecer en varias secciones con
+  el producto distinto de cada una. Y la acción de elegir el producto de una cadena pasa a ser
+  un **botón de icono de cesta** (con nombre accesible), no un botón de texto.
+
+- **S15** — «cuando añadas el producto a la cesta, solo debe añadirse a la cesta del super al
+  que pertenece. no deben generarse cestas paralelas en casa supermercado». Un producto añadido
+  desde una cadena pertenece **a esa cadena y a ninguna otra**: no se resuelve automáticamente
+  en las demás ni se ofrecen equivalentes por nuestra cuenta. Consecuencia en la lectura: no
+  hay «la cadena más barata para tu cesta completa», hay **una cesta por supermercado** y cada
+  una tiene su propio total. Mover un artículo a otra cadena es una acción explícita del
+  usuario, nunca algo que el sistema decida solo.
+
 ## Lo que ya existe (base de la web)
 
 `multisuper find` (buscar en seis), `multisuper basket` (cesta virtual con totales en céntimos
@@ -97,6 +112,14 @@ y ranking), `multisuper basket candidates` (candidatos para que el usuario elija
       "id":"305802","quantity":1}`) para que cada cadena tenga **su** producto de la misma
       línea. Sin esto, la web no puede dejar elegir producto por cadena, que es justo lo que
       el usuario pidió (L7).
+
+- [ ] **T39** Que el resultado se pueda recorrer (consecuencia de T38): con «leche de soja» las dos
+      IFA (`044616`, `044619`) están en las posiciones **9 y 10** de MAS, no entre las seis
+      primeras, porque diez bebidas empatan en cobertura 2/2 y la relevancia de la tienda ordena
+      ALPRO y VIVESOY primero. Poner IFA delante exige una regla de marca o de precio que la
+      consulta no menciona: **no se inventa**. En su lugar, la web pide 10 filas por cadena y
+      ofrece «ver más» (20) por cadena, para que lo que existe sea alcanzable sin mentir sobre la
+      relevancia. Ruta: `gentle-ai-worker`.
 
 ## Log
 

@@ -168,6 +168,15 @@ y `total_count` verificados (245 resultados para «leche», 20 por página).
       cobertura de términos (todas → alguna → ninguna) pidiendo de más y recortando al límite.
       Ruta: `gentle-ai-worker`.
 
+- [ ] **T38** Sinónimos de catálogo (fallo reportado por el usuario: «en mas si que hay leche de
+      soja de la marca ifa de 1l y no aparece»). **Reproducido:** en MAS existen `044616 Bebida
+      soja con calcio IFA ELIGES 1l` y `044619 Bebida soja sin azucar IFA ELIGES 1l`, pero la
+      normativa prohíbe llamar «leche» a una bebida vegetal: buscar `"leche de soja"` devuelve
+      1814 resultados por OR (salsas, soja texturizada, pan) y la bebida no entra en la página
+      pedida. El ranking por cobertura no puede arreglarlo porque el producto no contiene
+      «leche». Falta **expansión de la consulta** hacia la forma que usa el catálogo. Ruta:
+      `gentle-ai-worker`.
+
 ## Log
 
 - **L1** (literal) «cli de supermecardos. Creo que existe un mercadona-cli. la idea es
