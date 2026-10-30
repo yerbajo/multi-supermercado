@@ -16,6 +16,11 @@
       "desc": "S14: la cesta se lee por cadena —una sección por supermercado con su marca, su subtotal y las líneas que resuelve—, y la acción de elegir el producto de una cadena pasa a ser un botón de icono de cesta con nombre accesible, en lugar de un botón de texto. Hecho significa: una línea con producto distinto en tres cadenas aparece en las tres secciones con su precio, y el botón se puede usar con teclado y con lector de pantalla."
     },
     {
+      "title": "Un producto añadido pertenece a su supermercado, sin cestas paralelas",
+      "group": "Cesta y comparación",
+      "desc": "S15: añadir un producto desde una cadena lo mete solo en la cesta de esa cadena. Se deja de resolver automáticamente cada línea en las seis y se deja de presentar «la cadena más barata para la cesta completa», porque esa cesta única ya no existe: hay una cesta por supermercado con su propio total. Hecho significa: añadir la bebida de soja de MAS no la hace aparecer en DIA ni en ALDI, y la comparación muestra el total de cada cesta sin afirmar que sean comparables."
+    },
+    {
       "title": "La cesta debe usar los mismos sinónimos que la búsqueda",
       "group": "Cesta y comparación",
       "desc": "Defecto encontrado al implementar la cesta por supermercado: una línea sin producto fijado no se resuelve en ninguna cadena para «leche de soja», porque el emparejamiento de la cesta rechaza nombres como «Bebida de soja» al no contener «leche». La búsqueda sí aplica la expansión de sinónimos (T38); la cesta no. Hecho significa: añadir «leche de soja» sin elegir producto la resuelve en ALDI y DIA, que sí la venden."
