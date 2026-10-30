@@ -177,6 +177,17 @@ y `total_count` verificados (245 resultados para «leche», 20 por página).
       «leche». Falta **expansión de la consulta** hacia la forma que usa el catálogo. Ruta:
       `gentle-ai-worker`.
 
+- **Entrega (2026-10-28):** la rama `feat/supermercados-cli` llega a GitHub
+  (`yerbajo/multi-supermercado`) con **54 commits**. El diff contra `main` son **29.997 líneas**,
+  muy por encima del corte revisable de ~400: se entregó como una sola rama porque es una
+  feature completa y los commits ya van por unidad de trabajo. Desglose medido, porque el número
+  engaña: **8.499** son la herramienta Kanvas copiada en `.agents/skills/kanvas/`, **9.898** son
+  pruebas, **992** fixtures capturados de las APIs reales, **1.339** artboards de diseño y
+  **9.269** código y documentación propios. Lo revisable a mano son ~9.300 líneas, no 30.000.
+  Si se quiere revisión por partes, la ruta es `chained-pr`: backend por cadenas, web, y
+  planificación/kanvas como PR aparte. **Origen** fusionado en la rama para que `main` comparta
+  historia; el `README.md` de GitHub se descartó en favor del real.
+
 ## Log
 
 - **L1** (literal) «cli de supermecardos. Creo que existe un mercadona-cli. la idea es
