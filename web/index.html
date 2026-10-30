@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tienda cercana · multisuper</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Ir a las tiendas</a>
+
+<!-- Brand marks: one <symbol> per chain, drawn here so every instance is a <use> of local
+     markup. No file, no URL, no web font: the wordmarks are shapes plus the system font
+     stack that text inherits from the .logo element. -->
+<svg class="sprite" aria-hidden="true" focusable="false" width="0" height="0">
+  <symbol id="logo-alcampo">
+    <rect x="0.5" y="0.5" width="71" height="23" rx="4" fill="#FFFDF8" stroke="#8A7E6E"/>
+    <text x="36" y="16.2" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="9.6" font-weight="800" letter-spacing="0.3" fill="#D3202A" textLength="60" lengthAdjust="spacingAndGlyphs">ALCAMPO</text>
+  </symbol>
+  <symbol id="logo-aldi">
+    <rect width="72" height="24" rx="4" fill="#001E64"/>
+    <text x="36" y="16.3" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="10.5" font-weight="800" letter-spacing="0.8" fill="#FFFFFF">ALDI</text>
+  </symbol>
+  <symbol id="logo-carrefour">
+    <rect x="0.5" y="0.5" width="71" height="23" rx="4" fill="#FFFDF8" stroke="#8A7E6E"/>
+    <path d="M7 8.6 13 12 7 15.4Z" fill="#E30613"/>
+    <text x="15" y="16.1" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="9.2" font-weight="800" letter-spacing="0.1" fill="#004E9E" textLength="51" lengthAdjust="spacingAndGlyphs">CARREFOUR</text>
+  </symbol>
+  <symbol id="logo-dia">
+    <rect width="72" height="24" rx="4" fill="#C4121F"/>
+    <text x="36" y="16.4" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="11" font-weight="800" letter-spacing="0.6" fill="#FFFFFF">DIA</text>
+  </symbol>
+  <symbol id="logo-lidl">
+    <rect x="0.5" y="0.5" width="71" height="23" rx="4" fill="#FFF000" stroke="#0050AA"/>
+    <text x="36" y="16.2" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="10.6" font-weight="800" letter-spacing="0.6" fill="#0050AA" textLength="34" lengthAdjust="spacingAndGlyphs">LIDL</text>
+  </symbol>
+  <symbol id="logo-mas">
+    <rect x="0.5" y="0.5" width="71" height="23" rx="4" fill="#FFFDF8" stroke="#8A7E6E"/>
+    <text x="36" y="16.4" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif" font-size="11" font-weight="800" letter-spacing="1" fill="#B3121B">MAS</text>
+  </symbol>
+</svg>
+
+<header class="topbar">
+  <p class="brand">
+    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M3 6.5h14l-1.4 8.2a1.6 1.6 0 0 1-1.6 1.3H6a1.6 1.6 0 0 1-1.6-1.3L3 6.5Z" stroke="currentColor" stroke-width="1.6"/>
+      <path d="M7.2 6.4a2.8 2.8 0 0 1 5.6 0" stroke="currentColor" stroke-width="1.6"/>
+    </svg>
+    multisuper
+  </p>
+  <p class="zone">Compras en <b id="zone-cp">tu zona</b></p>
+</header>
+
+<main id="main">
+  <section class="hero" aria-labelledby="t">
+    <div>
+      <h1 id="t">Compra en la tienda de tu barrio</h1>
+      <p class="lede">Dinos dónde estás y qué tienda de cada cadena quieres usar. Buscamos los precios que cada cadena publica hoy, y te decimos qué haría con tu zona cada una.</p>
+
+      <form class="postal-row" id="postal-form" novalidate>
+        <div class="field">
+          <label for="cp">Tu código postal</label>
+          <input id="cp" name="cp" type="text" inputmode="numeric" autocomplete="postal-code"
+                 maxlength="5" pattern="[0-9]{5}" aria-describedby="cp-fine">
+        </div>
+        <button class="btn btn-primary" type="submit">Ver tiendas cercanas</button>
+      </form>
+      <p class="fine" id="cp-fine">En esta fase el código postal no filtra precios: se guarda y cada tarjeta de abajo dice qué haría esa cadena con él.</p>
+      <p class="fine" id="cp-status" role="status"></p>
+    </div>
+
+    <div class="steps">
+      <h2>Cómo funciona</h2>
+      <ol>
+        <li><span><b>Escribes tu código postal</b>y ves la tienda más cercana de cada cadena.</span></li>
+        <li><span><b>Eliges tus tiendas</b>Una por cadena, la que te pilla de paso.</span></li>
+        <li><span><b>Montas la cesta</b>Con el producto que quieras en cada cadena y el total en cada una.</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sect" aria-labelledby="shops-h">
+    <div class="sect-head">
+      <h2 id="shops-h">Tiendas cerca de <span id="cp-head">tu zona</span></h2>
+      <span class="tag">ejemplo</span>
+      <span class="hint" id="picked">Cargando tiendas…</span>
+    </div>
+    <p class="sub">La tienda, la dirección y la distancia son un <strong>ejemplo</strong>: el localizador por cadena todavía no está en el modelo de datos. Lo que sí está comprobado es qué hace cada cadena con tu zona.</p>
+    <ul class="shops" id="shops"></ul>
+    <p class="warnline" id="shops-note" hidden></p>
+  </section>
+
+  <div class="bottom">
+    <section class="panel" aria-labelledby="buscar-h">
+      <h2 id="buscar-h">Buscar en tus tiendas</h2>
+      <p class="sub">El mismo término se busca en las seis cadenas, cada una en el catálogo que publica hoy. El botón de la cesta de una fila añade ese producto a la cesta de esa cadena, y a ninguna otra.</p>
+      <form class="search-row" id="search-form" novalidate>
+        <div class="field">
+          <label for="q">Qué quieres comprar</label>
+          <input id="q" name="q" type="search" autocomplete="off" placeholder="por ejemplo, leche entera">
+        </div>
+        <button class="btn btn-primary" type="submit">Buscar</button>
+      </form>
+      <p class="try">Prueba con <em>leche entera</em>, <em>pan de molde</em> o <em>huevos</em>.</p>
+      <p class="fine" id="search-status" role="status"></p>
+      <ul class="hits" id="hits"></ul>
+      <p class="fine" id="hits-note">El orden dentro de cada cadena es el que da su propia búsqueda: solo ponemos delante los resultados que contienen tus palabras, sin reordenar por marca ni por precio.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="cesta-h">
+      <h2 id="cesta-h">Tu cesta, supermercado a supermercado</h2>
+      <p class="sub">Cada producto entra solo en la cesta del supermercado donde lo añadiste. Cada sección tiene sus artículos, su producto y su total: no hay una cesta única que sume varias cadenas.</p>
+      <ul class="lines" id="lines">
+        <li class="empty" id="lines-empty">Todavía no hay líneas. Busca un artículo y añádelo desde la fila de su cadena.</li>
+      </ul>
+      <p class="fine" id="add-status" role="status"></p>
+    </section>
+  </div>
+
+  <section class="sect" aria-labelledby="comp-h">
+    <div class="sect-head">
+      <h2 id="comp-h">Lo que cuesta tu cesta en cada supermercado</h2>
+      <span class="hint" id="comp-meta">Sin cesta todavía</span>
+    </div>
+    <p class="sub" id="comp-sub">Cada fila es la cesta de una cadena: los artículos que le pediste a ella y lo que cobra por ellos. No son cestas comparables entre sí, así que aquí no se declara ninguna «más barata». Una cadena caída no cancela las demás.</p>
+
+    <div class="empty-state" id="comp-empty" hidden>
+      <span class="empty-icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.4"/><path d="M10 6v4.4" stroke="currentColor" stroke-width="1.4"/><path d="M10 13.4v.6" stroke="currentColor" stroke-width="1.8"/></svg>
+      </span>
+      <div>
+        <p class="empty-text" id="comp-empty-text"></p>
+        <button class="btn btn-quiet btn-small" type="button" id="comp-empty-retry" data-retry="basket" hidden>Reintentar la comparación</button>
+      </div>
+    </div>
+
+    <ol class="rank" id="rank"></ol>
+    <p class="fail-line" id="comp-fail" hidden></p>
+
+    <p class="sr" role="status" aria-live="polite" id="live"></p>
+  </section>
+</main>
+
+<footer>
+  <p>Los precios los publica cada cadena en el momento de la consulta; el total se suma en céntimos enteros. Las tiendas, direcciones y distancias son un <strong>ejemplo</strong> hasta que exista el localizador por cadena. La zona de DIA es la del servidor (28041) hasta que se fije: no es tu zona. Solo DIA tiene cesta de tienda real; las demás cadenas no la tienen.</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

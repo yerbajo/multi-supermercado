@@ -1,0 +1,446 @@
+{
+ "type": "search",
+ "version": "v2.0.0",
+ "engine": "ldt-searcher",
+ "xPayload": {
+  "keywordResults": {
+   "num_items_found": 1
+  }
+ },
+ "id": "2f748de4-a8f3-4565-96f9-3b876afd9fe4",
+ "q": "leche entera",
+ "locale": "es_ES",
+ "assortment": "ES",
+ "resultType": "search",
+ "masterQuery": "leche entera",
+ "numFound": 49,
+ "offset": 0,
+ "fetchsize": 10,
+ "maxfetchsize": 1000,
+ "sort": {
+  "code": "relevancy",
+  "label": "Relevancia",
+  "url": "/q/api/search?assortment=ES&locale=es_ES&version=v2.0.0&q=leche+entera&sort=relevancy",
+  "link": {
+   "type": "search",
+   "filter": {},
+   "sort": "relevancy",
+   "q": "leche entera"
+  }
+ },
+ "sorts": [],
+ "facets": [],
+ "breadcrumbs": [],
+ "details": [],
+ "teasers": [],
+ "advisors": [],
+ "items": [
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11001765",
+   "url": "",
+   "gridbox": {
+    "country": "ES",
+    "data": {
+     "productId": 11001765,
+     "erpNumber": "11001765",
+     "fullTitle": "FIN CARRÉ Chocolate",
+     "title": "Chocolate",
+     "canonicalUrl": "/p/fin-carre-chocolate/p11001765",
+     "category": "Food",
+     "image": "https://www.lidl.es/assets/gcp98c0ffc034244b6ebf3b9c083019d401.png",
+     "brand": {
+      "name": "FIN CARRÉ"
+     },
+     "price": {
+      "price": 0.85,
+      "currencyCode": "EUR",
+      "packaging": {
+       "text": "100 g"
+      }
+     },
+     "stockAvailability": {
+      "onlineAvailable": false,
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "En tienda",
+         "type": "IN_STORE"
+        }
+       ]
+      }
+     },
+     "havingPrice": true,
+     "preventSelling": false
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11137495",
+   "url": "",
+   "gridbox": {
+    "country": "ES",
+    "data": {
+     "productId": 11137495,
+     "erpNumber": "11137495",
+     "fullTitle": "REALVALLE Lacón al horno",
+     "title": "Lacón al horno",
+     "canonicalUrl": "/p/realvalle-lacon-al-horno/p11137495",
+     "category": "Food",
+     "image": "https://www.lidl.es/assets/gcpa47b06b6b326453794806023ccde2af9.png",
+     "brand": {
+      "name": "REALVALLE"
+     },
+     "price": {
+      "currencyCode": "EUR"
+     },
+     "stockAvailability": {
+      "onlineAvailable": false,
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "En tienda",
+         "type": "IN_STORE"
+        }
+       ]
+      }
+     },
+     "havingPrice": true,
+     "preventSelling": false
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11137306",
+   "url": "",
+   "gridbox": {
+    "country": "ES",
+    "data": {
+     "productId": 11137306,
+     "erpNumber": "11137306",
+     "fullTitle": "MILBONA Nata ligera para cocinar",
+     "title": "Nata ligera para cocinar",
+     "canonicalUrl": "/p/milbona-nata-ligera-para-cocinar/p11137306",
+     "category": "Food",
+     "image": "https://www.lidl.es/assets/gcpf2c975498dbc4f21ab499824713fe010.jpg",
+     "brand": {
+      "name": "MILBONA"
+     },
+     "price": {
+      "price": 1.29,
+      "currencyCode": "EUR",
+      "packaging": {
+       "text": "500 ml"
+      }
+     },
+     "stockAvailability": {
+      "onlineAvailable": false,
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "En tienda",
+         "type": "IN_STORE"
+        }
+       ]
+      }
+     },
+     "havingPrice": true,
+     "preventSelling": false
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11007013",
+   "url": "",
+   "gridbox": {
+    "country": "ES",
+    "data": {
+     "productId": 11007013,
+     "erpNumber": "11007013",
+     "fullTitle": "JOHNSON & JOHNSON Enjuague bucal",
+     "title": "Enjuague bucal",
+     "canonicalUrl": "/p/johnson-johnson-enjuague-bucal/p11007013",
+     "category": "Food",
+     "image": "https://www.lidl.es/assets/gcp02f49283006c405b9012f3c19f4364f5.png",
+     "brand": {
+      "name": "LISTERINE"
+     },
+     "price": {
+      "price": 2.58,
+      "currencyCode": "EUR",
+      "packaging": {
+       "text": "500 ml"
+      }
+     },
+     "stockAvailability": {
+      "onlineAvailable": false,
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "En tienda",
+         "type": "IN_STORE"
+        }
+       ]
+      }
+     },
+     "havingPrice": true,
+     "preventSelling": false
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11137405",
+   "url": "",
+   "gridbox": {
+    "country": "ES",
+    "data": {
+     "productId": 11137405,
+     "erpNumber": "11137405",
+     "fullTitle": "MILBONA Especial pasta",
+     "title": "Especial pasta",
+     "canonicalUrl": "/p/milbona-especial-pasta/p11137405",
+     "category": "Food",
+     "image": "https://www.lidl.es/assets/gcp8697739338b042bfa52903e2bc928866.png",
+     "brand": {
+      "name": "MILBONA"
+     },
+     "price": {
+      "price": 0.95,
+      "currencyCode": "EUR",
+      "packaging": {
+       "text": "150 g"
+      }
+     },
+     "stockAvailability": {
+      "onlineAvailable": false,
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "En tienda",
+         "type": "IN_STORE"
+        }
+       ]
+      }
+     },
+     "havingPrice": true,
+     "preventSelling": false
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11150799",
+   "url": "",
+   "gridbox": {
+    "country": "ES",
+    "data": {
+     "productId": 11150799,
+     "erpNumber": "11150799",
+     "fullTitle": "Limón malla",
+     "title": "Limón malla",
+     "canonicalUrl": "/p/limon-malla/p11150799",
+     "category": "F+V",
+     "image": "https://www.lidl.es/assets/gcpbe87855899fd4c14a95d1cdb459db35f.png",
+     "price": {
+      "price": 2.19,
+      "currencyCode": "EUR",
+      "packaging": {
+       "text": "1 kg"
+      }
+     },
+     "stockAvailability": {
+      "onlineAvailable": false,
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "En tienda",
+         "type": "IN_STORE"
+        }
+       ]
+      }
+     },
+     "havingPrice": true,
+     "preventSelling": false
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11145199",
+   "url": "",
+   "gridbox": {
+    "country": "ES",
+    "data": {
+     "productId": 11145199,
+     "erpNumber": "11145199",
+     "fullTitle": "HALLOWEEN Pasta tricolor de sémola",
+     "title": "Pasta tricolor de sémola",
+     "canonicalUrl": "/p/halloween-pasta-tricolor-de-semola/p11145199",
+     "category": "Food",
+     "image": "https://www.lidl.es/assets/gcpe70552f8033c4ffa955666216afab85f.png",
+     "brand": {
+      "name": "HALLOWEEN"
+     },
+     "price": {
+      "price": 1.49,
+      "currencyCode": "EUR",
+      "packaging": {
+       "text": "500 g"
+      }
+     },
+     "stockAvailability": {
+      "onlineAvailable": false,
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "En tienda",
+         "type": "IN_STORE"
+        }
+       ]
+      }
+     },
+     "havingPrice": true,
+     "preventSelling": false
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11679508",
+   "url": "",
+   "gridbox": {
+    "country": "ES",
+    "data": {
+     "productId": 11679508,
+     "erpNumber": "11679508",
+     "fullTitle": "MAX & MILA'S WORLD Lata de paté para perro",
+     "title": "Lata de paté para perro",
+     "canonicalUrl": "/p/max-mila-s-world-lata-de-pate-para-perro/p11679508",
+     "category": "Food",
+     "image": "https://www.lidl.es/assets/gcpbb44ff20852a470aa88ef72bb3a774fe.png",
+     "brand": {
+      "name": "MAX & MILA'S WORLD"
+     },
+     "price": {
+      "price": 1.99,
+      "currencyCode": "EUR",
+      "packaging": {
+       "text": "1240g"
+      }
+     },
+     "stockAvailability": {
+      "onlineAvailable": false,
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "Solo en tienda desde 14.12",
+         "type": "IN_STORE_FROM_FUTURE_DATE_RANGE"
+        }
+       ]
+      }
+     },
+     "havingPrice": true,
+     "preventSelling": false
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11007967",
+   "url": "",
+   "gridbox": {
+    "country": "ES",
+    "data": {
+     "productId": 11007967,
+     "erpNumber": "11007967",
+     "fullTitle": "GELATELLI Helado almendrado",
+     "title": "Helado almendrado",
+     "canonicalUrl": "/p/gelatelli-helado-almendrado/p11007967",
+     "category": "Food",
+     "image": "https://www.lidl.es/assets/gcp265a37de633647e9ab30b43414af55fd.png",
+     "brand": {
+      "name": "GELATELLI"
+     },
+     "price": {
+      "price": 2.65,
+      "currencyCode": "EUR"
+     },
+     "stockAvailability": {
+      "onlineAvailable": false,
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "En tienda",
+         "type": "IN_STORE"
+        }
+       ]
+      }
+     },
+     "havingPrice": true,
+     "preventSelling": false
+    }
+   }
+  },
+  {
+   "resultClass": "product",
+   "type": "product",
+   "code": "11151220",
+   "url": "",
+   "gridbox": {
+    "country": "ES",
+    "data": {
+     "productId": 11151220,
+     "erpNumber": "11151220",
+     "fullTitle": "Cebolla dulce malla",
+     "title": "Cebolla dulce malla",
+     "canonicalUrl": "/p/cebolla-dulce-malla/p11151220",
+     "category": "F+V",
+     "image": "https://www.lidl.es/assets/gcp4bd7a8b7ac9748029efe455f3c161baf.png",
+     "price": {
+      "price": 2.29,
+      "currencyCode": "EUR",
+      "packaging": {
+       "text": "1 kg"
+      }
+     },
+     "stockAvailability": {
+      "onlineAvailable": false,
+      "availabilityIndicator": 0,
+      "badgeInfo": {
+       "badges": [
+        {
+         "text": "En tienda",
+         "type": "IN_STORE"
+        }
+       ]
+      }
+     },
+     "havingPrice": true,
+     "preventSelling": false
+    }
+   }
+  }
+ ]
+}

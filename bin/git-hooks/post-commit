@@ -1,0 +1,28 @@
+#!/bin/sh
+# Push the branch after every commit, unless the repository says otherwise.
+#
+#   git config multisuper.autopush false   # stop it
+#   git config multisuper.autopush true    # start it again (the default here)
+#
+# Never forces, never touches another branch, and stays quiet when there is
+# nothing to send. A failed push leaves the commit local and says so, so no work
+# is lost: the next commit tries again.
+
+[ "$(git config --bool multisuper.autopush)" = "false" ] && exit 0
+git remote get-url origin >/dev/null 2>&1 || exit 0
+
+branch=$(git symbolic-ref --short -q HEAD) || exit 0
+upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null)
+
+if [ -n "$upstream" ]; then
+  [ "$(git rev-list --count "$upstream..$branch" 2>/dev/null)" = "0" ] && exit 0
+  if git push --quiet origin "$branch" 2>/dev/null; then
+    printf '\033[2mpushed %s → %s\033[0m\n' "$(git rev-parse --short HEAD)" "$upstream"
+  else
+    printf '\033[33mpush failed for %s; the commit stays local and the next one retries\033[0m\n' "$branch" >&2
+  fi
+else
+  # First commit on a branch that does not exist remotely yet.
+  git push --quiet --set-upstream origin "$branch" 2>/dev/null &&
+    printf '\033[2mpushed %s → origin/%s (new branch)\033[0m\n' "$(git rev-parse --short HEAD)" "$branch"
+fi

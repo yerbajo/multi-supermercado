@@ -1,0 +1,16 @@
+# Herramientas de agentes y tablero: viven en la máquina, no en el repositorio.
+# La herramienta Kanvas y el tablero se reinstalan con `kanvas init`.
+.agents/
+.claude/
+kanvas.json
+AGENTS.md
+bin/kanvas
+bin/pi-board
+
+# Investigación con detalle de acceso a apps privadas (endpoints, cabeceras, fragmentos
+# de token). Se queda en local: no es código, documentación ni pruebas del producto.
+odd/research/
+
+# Nada de sesiones ni credenciales de tienda.
+*-cart.json
+.env

@@ -1,0 +1,117 @@
+{
+  "cart": {
+    "postal_code": "28041",
+    "total_amount": 0,
+    "total_units": 0
+  },
+  "facets": [],
+  "locale": "es",
+  "login_status": "ANONYMOUS",
+  "pagination": {
+    "page_number": 1,
+    "page_size": 30,
+    "total_pages": 15
+  },
+  "query_id": "9815d838a1389186796bf8fc34950af1",
+  "search_items": [
+    {
+      "brand": "Dia Láctea",
+      "brand_type": "D",
+      "dia_brand": true,
+      "display_name": "Leche semidesnatada Dia Láctea pack 6 x 1 L",
+      "image": "/product_images/504P6/504P6_ISO_0_ES.jpg",
+      "l1_category_description": "Huevos, leche y mantequilla",
+      "l2_category_description": "Leche",
+      "object_id": "504P6",
+      "prices": {
+        "currency": "EUR",
+        "discount_percentage": 0,
+        "is_club_price": false,
+        "is_promo_price": false,
+        "measure_unit": "LITRO",
+        "price": 4.98,
+        "price_per_unit": 0.83,
+        "strikethrough_price": 4.98
+      },
+      "sku_id": "504P6",
+      "units_in_cart": 0,
+      "units_in_stock": 8621,
+      "url": "/huevos-leche-y-mantequilla/leche/p/504P6"
+    },
+    {
+      "brand": "Dia Láctea",
+      "brand_type": "D",
+      "dia_brand": true,
+      "display_name": "Leche entera Dia Láctea pack 6 x 1 L",
+      "image": "/product_images/608P6/608P6_ISO_0_ES.jpg",
+      "l1_category_description": "Huevos, leche y mantequilla",
+      "l2_category_description": "Leche",
+      "object_id": "608P6",
+      "prices": {
+        "currency": "EUR",
+        "discount_percentage": 0,
+        "is_club_price": false,
+        "is_promo_price": false,
+        "measure_unit": "LITRO",
+        "price": 5.76,
+        "price_per_unit": 0.96,
+        "strikethrough_price": 5.76
+      },
+      "sku_id": "608P6",
+      "units_in_cart": 0,
+      "units_in_stock": 964,
+      "url": "/huevos-leche-y-mantequilla/leche/p/608P6"
+    },
+    {
+      "allergens": [
+        {
+          "name": "Sin lactosa"
+        }
+      ],
+      "brand": "Dia Láctea",
+      "brand_type": "D",
+      "dia_brand": true,
+      "display_name": "Leche semidesnatada sin lactosa Dia Láctea pack 6 x 1 L",
+      "image": "/product_images/130063P6/130063P6_ISO_0_ES.jpg",
+      "l1_category_description": "Huevos, leche y mantequilla",
+      "l2_category_description": "Leche sin lactosa y enriquecidas",
+      "object_id": "130063P6",
+      "prices": {
+        "currency": "EUR",
+        "discount_percentage": 0,
+        "is_club_price": false,
+        "is_promo_price": false,
+        "measure_unit": "LITRO",
+        "price": 5.64,
+        "price_per_unit": 0.94,
+        "strikethrough_price": 5.64
+      },
+      "product_info": "Sin lactosa",
+      "sku_id": "130063P6",
+      "stamp_code": "4",
+      "stamp_color": "#007491",
+      "stamp_description": "Mejor valorado",
+      "stamp_text_color": "#FFFFFF",
+      "units_in_cart": 0,
+      "units_in_stock": 489,
+      "url": "/huevos-leche-y-mantequilla/leche-sin-lactosa-y-enriquecidas/p/130063P6"
+    }
+  ],
+  "sort": {
+    "direction": "desc",
+    "field": "rating"
+  },
+  "suggestions": {
+    "words": [
+      {
+        "formatted": "+ entera",
+        "original": "leche entera"
+      },
+      {
+        "formatted": "+ sin lactosa",
+        "original": "leche sin lactosa"
+      }
+    ]
+  },
+  "total_items": 423
+}

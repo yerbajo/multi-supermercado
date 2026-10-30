@@ -1,0 +1,231 @@
+{
+  "productGroups": [
+    {
+      "type": "personalized",
+      "decoratedProducts": [
+        {
+          "productId": "176cfd5e-afa9-4aa1-8b6f-fe3d757c535e",
+          "retailerProductId": "54180",
+          "type": "REGULAR",
+          "name": "AUCHAN Leche semidesnatada de vaca 6 x 1l Producto Alcampo.",
+          "brand": "PRODUCTO ALCAMPO",
+          "packSizeDescription": "6000ml",
+          "price": {
+            "amount": "5.28",
+            "currency": "EUR"
+          },
+          "unitPrice": {
+            "price": {
+              "amount": "0.88",
+              "currency": "EUR"
+            },
+            "unit": "fop.price.per.litre",
+            "unitName": "PER_LITRE"
+          },
+          "available": true,
+          "isVerifiedPurchase": false,
+          "quantityInBasket": 0,
+          "maxQuantityReached": false,
+          "quantityRestrictionGroup": {
+            "quantityRestrictionGroupId": "b31ca945-1405-4306-8333-693b70248b03",
+            "contribution": 10.0
+          },
+          "taxCodesDisplayNames": [],
+          "imageIds": [
+            "1aec1514-3cce-46d9-8133-20fdebbdb2cc"
+          ],
+          "imagePaths": [
+            "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/1aec1514-3cce-46d9-8133-20fdebbdb2cc"
+          ],
+          "iconAttributes": [
+            {
+              "label": "Producto Alcampo",
+              "file": "icon_alcampo_product"
+            }
+          ],
+          "icons": [],
+          "basketLines": [],
+          "timeRestricted": false,
+          "alternatives": [],
+          "isInShoppingList": false,
+          "isInCurrentCatalog": true,
+          "ratingSummary": {
+            "overallRating": "5.0",
+            "count": 1
+          },
+          "retailerFinancingPlanIds": [
+            "022",
+            "025",
+            "026",
+            "027",
+            "016",
+            "021"
+          ],
+          "alcohol": false,
+          "categoryPath": [
+            "Leche, Huevos, Lácteos, Yogures y Bebidas vegetales",
+            "Leche",
+            "Leche semidesnatada"
+          ],
+          "isNew": false,
+          "images": [
+            {
+              "src": "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/1aec1514-3cce-46d9-8133-20fdebbdb2cc/500x500.jpg",
+              "description": "AUCHAN Leche semidesnatada de vaca 6 x 1l Producto Alcampo."
+            }
+          ]
+        },
+        {
+          "productId": "6ab4700b-58f9-4d2c-942a-7ddce3286b57",
+          "retailerProductId": "54178",
+          "type": "REGULAR",
+          "name": "AUCHAN Leche entera de vaca 6 x 1 l Producto Alcampo.",
+          "brand": "PRODUCTO ALCAMPO",
+          "packSizeDescription": "6000ml",
+          "price": {
+            "amount": "5.76",
+            "currency": "EUR"
+          },
+          "unitPrice": {
+            "price": {
+              "amount": "0.96",
+              "currency": "EUR"
+            },
+            "unit": "fop.price.per.litre",
+            "unitName": "PER_LITRE"
+          },
+          "available": true,
+          "isVerifiedPurchase": false,
+          "quantityInBasket": 0,
+          "maxQuantityReached": false,
+          "quantityRestrictionGroup": {
+            "quantityRestrictionGroupId": "9126fbac-51f9-45b3-9c60-0f1f9137a668",
+            "contribution": 10.0
+          },
+          "taxCodesDisplayNames": [],
+          "imageIds": [
+            "845a9f8d-6b50-4055-81ce-1b7e621987f3"
+          ],
+          "imagePaths": [
+            "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/845a9f8d-6b50-4055-81ce-1b7e621987f3"
+          ],
+          "iconAttributes": [
+            {
+              "label": "Producto Alcampo",
+              "file": "icon_alcampo_product"
+            }
+          ],
+          "icons": [],
+          "basketLines": [],
+          "timeRestricted": false,
+          "alternatives": [],
+          "isInShoppingList": false,
+          "isInCurrentCatalog": true,
+          "ratingSummary": {
+            "overallRating": "0.0",
+            "count": 0
+          },
+          "retailerFinancingPlanIds": [
+            "022",
+            "025",
+            "026",
+            "027",
+            "016",
+            "021"
+          ],
+          "alcohol": false,
+          "categoryPath": [
+            "Leche, Huevos, Lácteos, Yogures y Bebidas vegetales",
+            "Leche",
+            "Leche entera"
+          ],
+          "isNew": false,
+          "images": [
+            {
+              "src": "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/845a9f8d-6b50-4055-81ce-1b7e621987f3/500x500.jpg",
+              "description": "AUCHAN Leche entera de vaca 6 x 1 l Producto Alcampo."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "cluster",
+      "decoratedProducts": [
+        {
+          "productId": "123ec3ee-03ff-4e43-adb9-0f06c7d6a672",
+          "retailerProductId": "53096",
+          "type": "REGULAR",
+          "name": "PULEVA EcoLeche entera pack de 6 uds x 1 l.",
+          "brand": "PULEVA",
+          "packSizeDescription": "6000ml",
+          "price": {
+            "amount": "8.26",
+            "currency": "EUR"
+          },
+          "unitPrice": {
+            "price": {
+              "amount": "1.38",
+              "currency": "EUR"
+            },
+            "unit": "fop.price.per.litre",
+            "unitName": "PER_LITRE"
+          },
+          "available": true,
+          "isVerifiedPurchase": false,
+          "quantityInBasket": 0,
+          "maxQuantityReached": false,
+          "taxCodesDisplayNames": [],
+          "imageIds": [
+            "2ee9a3e6-478e-42d5-941f-900f605d9b0e"
+          ],
+          "imagePaths": [
+            "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/2ee9a3e6-478e-42d5-941f-900f605d9b0e"
+          ],
+          "iconAttributes": [
+            {
+              "label": "Producto Ecológico",
+              "file": "icon_eco"
+            }
+          ],
+          "icons": [],
+          "basketLines": [],
+          "timeRestricted": false,
+          "alternatives": [],
+          "isInShoppingList": false,
+          "isInCurrentCatalog": true,
+          "ratingSummary": {
+            "overallRating": "0.0",
+            "count": 0
+          },
+          "retailerFinancingPlanIds": [
+            "022",
+            "025",
+            "026",
+            "027",
+            "016",
+            "021"
+          ],
+          "alcohol": false,
+          "categoryPath": [
+            "Leche, Huevos, Lácteos, Yogures y Bebidas vegetales",
+            "Leche",
+            "Leche Ecológica"
+          ],
+          "isNew": false,
+          "images": [
+            {
+              "src": "https://www.compraonline.alcampo.es/images-v3/37ea0506-72ec-4543-93c8-a77bb916ec12/2ee9a3e6-478e-42d5-941f-900f605d9b0e/500x500.jpg",
+              "description": "PULEVA EcoLeche entera pack de 6 uds x 1 l."
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "nextPageToken": "314772ee-fae1-4064-87d4-8b94acb678ae"
+  },
+  "additionalPageInfo": {},
+  "missedPromotions": []
+}
